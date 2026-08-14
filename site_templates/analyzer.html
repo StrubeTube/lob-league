@@ -1,0 +1,163 @@
+<meta charset="utf-8">
+<title>GGG League — Trade Tester</title>
+<link rel="stylesheet" href="ggg.css">
+__NAV__
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow">GGG League &middot; under the proposed rules</div>
+    <h1>The Trade Tester</h1>
+    <p class="lede">Pick two teams, click the players changing sides, and get the verdict before you embarrass yourself in the group chat. Every number matches the Home page: players carry their <b>2026 keep price</b> (the round they were drafted — one round earlier if they were already a keeper in 2025), each team starts from its <b>projected 2026 opening</b> — the same figure as the cap board — and waiver pickups are <b>$0</b>. Future picks are $0 against this season&rsquo;s band; they hit the buyer&rsquo;s opening cap next year instead.</p>
+    <div class="chiprow" id="ruleNote" style="margin-top:12px"></div>
+  </header>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">The deal</div><h2>Who&rsquo;s trading?</h2>
+    <p class="sec-note">Click a player to flip him to the other team. Click again to keep him home.</p></div>
+    <div class="mlabel">Team A</div>
+    <div class="filterrow" id="pickA"></div>
+    <div class="mlabel">Team B</div>
+    <div class="filterrow" id="pickB"></div>
+    <div class="duo-cards">
+      <div class="card"><div class="dcard-head"><h3 class="cardh" id="headA"></h3><span class="mut small" id="salA"></span></div><div class="tradebox" id="boxA"></div></div>
+      <div class="card"><div class="dcard-head"><h3 class="cardh" id="headB"></h3><span class="mut small" id="salB"></span></div><div class="tradebox" id="boxB"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">The verdict</div><h2 id="verdictTitle">Build a trade</h2></div>
+    <div class="card">
+      <div class="chiprow" id="verdictChips"></div>
+      <div id="verdictBars" style="margin-top:12px"></div>
+      <div id="fixHints" style="margin-top:12px"></div>
+      <p class="cardnote" style="margin-top:10px">Rule: after the swap, both rosters must sit inside the band — and a trade is only illegal for a team if it moves that team the <i>wrong way</i> (further over the cap, or further under the floor).</p>
+    </div>
+  </section>
+</div>
+__FOOT__
+<script>
+const DATA = /*__DATA__*/{};
+const $ = (t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e;};
+
+/* rules — mirror the Lab when Apply-to-Home is on, same as the homepage */
+const TABLE={...DATA.cfg.table};
+let CAP=DATA.cfg.cap, FLOOR=DATA.cfg.floor, labOn=false;
+try{
+  const L=JSON.parse(localStorage.getItem('ggg-lab-v7'));
+  if(L&&L.apply==='on'){
+    labOn=true;
+    if(typeof L.cap==='number')CAP=L.cap>=180?L.cap:Infinity;
+    if(typeof L.floor==='number')FLOOR=L.floor;
+  }
+}catch(e){}
+const rn=document.getElementById('ruleNote');
+rn.appendChild($('span','chip '+(labOn?'gold':'even'),(labOn?'⚗️ Lab rules active: ':'Default rules: ')+
+  (isFinite(CAP)?('cap $'+CAP):'no cap')+' · '+(FLOOR>0?('floor $'+FLOOR):'no floor')));
+
+/* 2026 keeper price — one round up from the drafted round, same as the Home
+   keeper corner (baked as k26 by the build); waiver adds are $0 */
+const price=p=>p.el?p.k26:0;
+/* team baseline = projected 2026 opening from the 16 held picks — the exact
+   number the Home cap board shows */
+const openOf=ti=>DATA.teams[ti].picks.slice(0,16).reduce((a,p)=>a+TABLE[p.r],0);
+
+let ta=0,tb=1,outA=new Set(),outB=new Set();
+
+function pills(hostId,get,other,set){
+  const host=document.getElementById(hostId);host.textContent='';
+  DATA.teams.forEach((tm,i)=>{
+    const b=$('button','tpill'+(get()===i?' active':''),tm.name);b.type='button';
+    if(i===other())b.disabled=true,b.style.opacity=.35;
+    b.addEventListener('click',()=>{set(i);outA=new Set();outB=new Set();render();});
+    host.appendChild(b);
+  });
+}
+
+function sideBox(ti,out,boxId,headId,salId){
+  const tm=DATA.teams[ti];
+  document.getElementById(headId).textContent=tm.name;
+  document.getElementById(salId).textContent='opens $'+Math.round(openOf(ti));
+  const box=document.getElementById(boxId);box.textContent='';
+  const players=tm.players.map((p,i)=>({p,i})).sort((a,b)=>price(b.p)-price(a.p)||a.p.n.localeCompare(b.p.n));
+  players.forEach(({p,i})=>{
+    const b=$('button','tradep'+(out.has(i)?' out':''));b.type='button';
+    b.appendChild($('b',null,p.n));
+    b.appendChild($('span','pp',' '+p.pos+' · $'+price(p)));
+    b.addEventListener('click',()=>{out.has(i)?out.delete(i):out.add(i);render();});
+    box.appendChild(b);
+  });
+}
+
+function sum(ti,set){let s=0;set.forEach(i=>s+=price(DATA.teams[ti].players[i]));return s;}
+function names(ti,set){const a=[];set.forEach(i=>a.push(DATA.teams[ti].players[i].n));return a;}
+
+function bar(host,name,before,after,scale,viol){
+  const row=$('div','cbrow');
+  const nm=$('div','cbname');nm.appendChild($('span','cbteam',name));row.appendChild(nm);
+  const tr=$('div','cbtrack');
+  const seg=$('div','cbseg d');seg.style.left='0';seg.style.width=(Math.min(after,scale)/scale*100)+'%';
+  if(viol)seg.style.background='var(--coral)',seg.style.opacity=1;
+  tr.appendChild(seg);
+  if(before!==after){
+    const band=$('div','cbrange');band.style.left=(Math.min(before,after)/scale*100)+'%';
+    band.style.width=(Math.abs(before-after)/scale*100)+'%';tr.appendChild(band);
+  }
+  if(isFinite(CAP)){const cl=$('div','cbcap');cl.style.left=(CAP/scale*100)+'%';tr.appendChild(cl);}
+  if(FLOOR>0){const fl=$('div','cbfloor');fl.style.left=(FLOOR/scale*100)+'%';tr.appendChild(fl);}
+  row.appendChild(tr);
+  const val=$('div','cbval');
+  val.appendChild($('b',viol?'bad':'','$'+Math.round(before)+' → $'+Math.round(after)));
+  row.appendChild(val);
+  host.appendChild(row);
+}
+
+function render(){
+  pills('pickA',()=>ta,()=>tb,i=>ta=i);
+  pills('pickB',()=>tb,()=>ta,i=>tb=i);
+  sideBox(ta,outA,'boxA','headA','salA');
+  sideBox(tb,outB,'boxB','headB','salB');
+
+  const title=document.getElementById('verdictTitle');
+  const chips=document.getElementById('verdictChips');chips.textContent='';
+  const bars=document.getElementById('verdictBars');bars.textContent='';
+  const hints=document.getElementById('fixHints');hints.textContent='';
+
+  if(!outA.size&&!outB.size){title.textContent='Build a trade';
+    hints.appendChild($('p','mut small','Click players above to move them across.'));return;}
+
+  const bA=openOf(ta), bB=openOf(tb);
+  const outSalA=sum(ta,outA), outSalB=sum(tb,outB);
+  const aA=bA-outSalA+outSalB, aB=bB-outSalB+outSalA;
+  const vA=(aA>CAP&&aA>bA)||(FLOOR>0&&aA<FLOOR&&aA<bA);
+  const vB=(aB>CAP&&aB>bB)||(FLOOR>0&&aB<FLOOR&&aB<bB);
+  const blocked=vA||vB;
+
+  title.textContent=blocked?'🚫 Blocked — outside the cap band':'✅ This trade is legal';
+  const nmA=DATA.teams[ta].name, nmB=DATA.teams[tb].name;
+  chips.appendChild($('span','chip '+(blocked?'flag':'ok'),blocked?'NO DEAL':'CLEARS THE BAND'));
+  if(outA.size)chips.appendChild($('span','chip even',nmA+' sends '+names(ta,outA).join(', ')+' ($'+outSalA+')'));
+  if(outB.size)chips.appendChild($('span','chip even',nmB+' sends '+names(tb,outB).join(', ')+' ($'+outSalB+')'));
+
+  const scale=Math.max(280,isFinite(CAP)?CAP+50:0,aA+10,aB+10,bA+10,bB+10);
+  bar(bars,nmA,bA,aA,scale,vA);
+  bar(bars,nmB,bB,aB,scale,vB);
+
+  [[vA,nmA,bA,aA],[vB,nmB,bB,aB]].forEach(([v,nm2,b2,a2])=>{
+    if(!v)return;
+    const p=$('p','bad small');p.style.fontWeight=600;
+    if(a2>CAP)p.textContent='⚠ '+nm2+' would land $'+Math.round(a2-CAP)+' over the cap — shed at least that much salary, or take less back.';
+    else p.textContent='⚠ '+nm2+' would land $'+Math.round(FLOOR-a2)+' under the floor — they must take back at least that much more salary for this deal to be legal.';
+    hints.appendChild(p);
+  });
+  if(!blocked)hints.appendChild($('p','small',(function(){
+    const room=[];
+    if(isFinite(CAP))room.push(nmA+' has $'+Math.round(CAP-aA)+' of cap room left, '+nmB+' has $'+Math.round(CAP-aB));
+    if(FLOOR>0){
+      const ft=(nm2,a2)=>a2>=FLOOR?(nm2+' sits $'+Math.round(a2-FLOOR)+' above the floor')
+        :(nm2+' is $'+Math.round(FLOOR-a2)+' below the floor but climbing — legal');
+      room.push(ft(nmA,aA)+' · '+ft(nmB,aB));
+    }
+    return room.join(' · ');
+  })()));
+}
+render();
+</script>

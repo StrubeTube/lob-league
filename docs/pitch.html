@@ -1,0 +1,144 @@
+<meta charset="utf-8">
+<title>LOB League — The 2026 Proposal</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="stylesheet" href="ggg.css?v=7e7a80f9">
+<nav class="ggg"><div class="in"><span class="logo">LOB</span><div class="navgrp newg"><span class="navcap">New · your team</span><div class="navlinks"><a href="index.html" class="">Home</a><a href="analyzer.html" class="">Trade Tester</a></div></div><div class="navgrp histg"><span class="navcap">League history</span><div class="navlinks"><a href="history.html" class="">History</a><a href="records.html" class="">Records</a><a href="drafts.html" class="">Drafts</a><a href="trades.html" class="">Trades</a></div></div><a href="pitch.html" class="pitchtab on">🗳️ The Proposal</a><a href="lab.html" class="labtab">⚙️ Commish tools</a></div></nav>
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow">LOB League &middot; 2026 rules proposal &middot; the league votes before the draft</div>
+    <h1>Same league. Real stakes.<br>All season long.</h1>
+    <p class="lede">Before you dive into the new site, here&rsquo;s what&rsquo;s on the table for 2026. It&rsquo;s not contracts, it&rsquo;s not auctions, and it&rsquo;s not homework. It&rsquo;s <b>three numbers</b> that end the fire sale for good &mdash; and a keeper format with a little more game in it. The site you&rsquo;re about to enter does all the math for you.</p>
+    <div class="filterrow" style="margin-top:16px">
+      <span class="chip mini">✓ same draft</span>
+      <span class="chip mini">✓ same keeper spirit</span>
+      <span class="chip mini">✓ trade whenever</span>
+      <span class="chip mini">✓ zero spreadsheets</span>
+      <span class="chip mini">✓ same trash talk</span>
+    </div>
+  </header>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">The problem</div><h2>Selling out is free. That&rsquo;s the bug.</h2>
+    <p class="sec-note">Under the current rules, a team that falls out of the race is <i>supposed</i> to sell &mdash; it&rsquo;s the rational play. The rulebook makes it free:</p></div>
+    <div class="probgrid">
+      <div class="probcard"><div class="pemoji">📉</div><h3>Quitting costs nothing</h3><p>A season goes sideways and the smart move is to sell. Future picks cost nothing this year &mdash; and giving up your stars costs nothing next year either, because the roster resets at the draft anyway. There is no downside to nuking your team.</p></div>
+      <div class="probcard"><div class="pemoji">🚀</div><h3>One trade flips the race</h3><p>A contender absorbs a playoff-caliber roster for futures. Months of drafting and managing get outweighed by a single transaction, and the standings warp for every team on the schedule.</p></div>
+      <div class="probcard"><div class="pemoji">🛡️</div><h3>League integrity takes the hit</h3><p>Moving the deadline up was our attempt to protect the race. The sell-off just happens earlier now &mdash; the standings still get warped by one-sided deals, and we gave up trading weeks to get there. The integrity of the season needs real protection, not a shorter calendar.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">The fix</div><h2>Three numbers. That&rsquo;s the whole rulebook.</h2></div>
+    <div class="tiles">
+      <div class="tile"><div class="num good" id="tRound">$30 → $2</div><div class="lbl"><b>Every player&rsquo;s salary = his draft round.</b> Round 1 costs $30, round 16 costs $2. No negotiating, no math &mdash; the board sets the price automatically.</div></div>
+      <div class="tile"><div class="num" id="tCap"></div><div class="lbl"><b>The cap.</b> No trade may leave your roster above it. Stack stars if you can fit them &mdash; the arms race finally has a ceiling.</div></div>
+      <div class="tile"><div class="num" id="tFloor"></div><div class="lbl"><b>The floor.</b> No trade may leave your roster below it. Rebuilding and selling are still allowed &mdash; you just can&rsquo;t nuke your roster to nothing. Every team stays a real team all season.</div></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="mlabel" style="margin-bottom:8px">The price board</div>
+      <div class="salary-mini" id="tableStrip"></div>
+      <p class="mut small" style="margin-top:10px">Keep a guy and he costs his draft round the first year, then climbs a round every year after &mdash; stars get expensive, bargains stay fun. Waivers cost <b>$0</b>, so nobody ever gets stuck unable to field a lineup.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">See it work</div><h2>The fire sale, before and after</h2>
+    <p class="sec-note">A made-up example with the usual shape: a struggling team ships two studs to a contender for future picks and a bench body. Here&rsquo;s how the band judges it:</p></div>
+    <div class="card">
+      <div id="bandDemo"></div>
+      <p class="cardnote" style="margin-top:10px">Red line = the $<span class="capN"></span> cap &middot; gold line = the $<span class="floorN"></span> floor. The buyer fits &mdash; but the seller&rsquo;s roster crashes through the floor, so <b>the trade never happens as-is</b>. Rebuilding is still on the table: the seller can move a star, they just have to take real players back alongside the picks. The deal gets renegotiated with value both ways.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">Before you push back</div><h2>What does NOT change</h2>
+    <p class="sec-note">Fair warning: this reads like &ldquo;more rules.&rdquo; It&rsquo;s actually three guardrails on the outside of the game you already play. Everything inside stays:</p></div>
+    <ol class="bigsteps">
+      <li><b>Draft night is identical.</b> Same board, same snake, same picks. Salaries are assigned by round automatically &mdash; you never set a price.</li>
+      <li><b>Keeping is identical in spirit.</b> You still keep your guys; the price just climbs a round a year like it always effectively did.</li>
+      <li><b>Trading gets MORE room, not less.</b> With the band doing the policing, we can push the trade deadline <b>back</b> instead of up &mdash; more weeks of live trading, because fire sales become structurally impossible instead of just early. In the replayed seasons most everyday trades pass untouched; the band only bites deals where one side stops being a football team.</li>
+      <li><b>You do zero math.</b> This site prices every roster live, and the <a href="analyzer.html"><b>Trade Tester</b></a> gives any deal a verdict before you even propose it &mdash; and tells you exactly how to fix an illegal one.</li>
+    </ol>
+  </section>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">The receipts</div><h2>We didn&rsquo;t guess. We replayed history.</h2></div>
+    <div class="tiles">
+      <div class="tile"><div class="num" id="rSeasons"></div><div class="lbl">full seasons re-run under these exact rules &mdash; every draft, every trade, 2024&ndash;2025.</div></div>
+      <div class="tile"><div class="num good" id="rFires"></div><div class="lbl" id="rFiresLbl">fire-sale-shaped trades flagged in league history &mdash; deals the band renegotiates into real trades.</div></div>
+      <div class="tile"><div class="num">3</div><div class="lbl">numbers in the entire rulebook. A price table, a cap, a floor. That&rsquo;s the whole thing.</div></div>
+    </div>
+    <p class="sec-note" style="margin-top:12px">Draft over the cap on purpose? Legal &mdash; welcome to <b>cap jail</b>: you can still play, stream $0 waivers, and trade your way down. You just can&rsquo;t trade your way deeper in.</p>
+  </section>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">The vote</div><h2>One question is still open: how many keepers?</h2>
+    <p class="sec-note">Everything above is the proposal. This is the piece the league decides &mdash; and either way, <b>keeper salaries count toward your team salary</b>:</p></div>
+    <div class="duo-cards">
+      <div class="optcard a"><div class="opttag">Plan A</div><h3>Exactly 3 keepers, no budget</h3>
+        <p>The classic. The price board is the only limiter: keeping a star means carrying a big salary and burning an early pick.</p>
+        <ul><li>Simplest possible version</li><li>More stars return to the draft</li><li>Zero extra rules beyond the three numbers</li></ul></div>
+      <div class="optcard b"><div class="opttag">Plan B</div><h3>Up to 5 keepers, $<span id="bud5"></span> keeper budget</h3>
+        <p>The new-dynamic option: two extra slots for late-round gems and lottery tickets, with one budget to manage. Every offseason becomes a little GM game &mdash; who did the most with $<span class="bud5b"></span>?</p>
+        <ul><li>Keep a star plus a couple of bargains &mdash; or skip the star for a fistful of mid-rounders</li><li>Rewards late-round scouting all season long</li><li>Whole new offseason debate: value per dollar</li></ul></div>
+    </div>
+  </section>
+
+  <section style="text-align:center">
+    <a class="enterbtn" href="index.html" id="enterBtn">Take me to my team →</a>
+    <p class="mut small" style="margin-top:14px">This is a proposal, not policy &mdash; we vote before the 2026 draft. Inside: your live cap sheet, keeper prices, the Trade Tester, and six years of league history.</p>
+  </section>
+</div>
+<footer class="ggg"><div class="in">LOB League — League of Burger · data from the Sleeper API · stats computed 2026-08-14 · regular-season records unless noted · grudges update automatically</div></footer>
+<script>
+const DATA = {"cfg": {"cap": 230, "floor": 160, "table": {"1": 30, "2": 26, "3": 22, "4": 19, "5": 16, "6": 14, "7": 12, "8": 10, "9": 8, "10": 7, "11": 6, "12": 5, "13": 4, "14": 3, "15": 2, "16": 2}, "budget5": 50}, "fires": 5, "nseasons": 2};
+const $ = (t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e;};
+/* seeing this page unlocks the rest of the site */
+try{localStorage.setItem('lob-pitch-v2','1');}catch(e){}
+const C=DATA.cfg;
+document.getElementById('tCap').textContent='$'+C.cap;
+document.getElementById('tFloor').textContent='$'+C.floor;
+document.getElementById('tRound').textContent='$'+C.table[1]+' → $'+C.table[16];
+document.getElementById('bud5').textContent=C.budget5;
+document.querySelectorAll('.bud5b').forEach(e=>e.textContent=C.budget5);
+document.querySelectorAll('.capN').forEach(e=>e.textContent=C.cap);
+document.querySelectorAll('.floorN').forEach(e=>e.textContent=C.floor);
+
+document.getElementById('rSeasons').textContent=DATA.nseasons;
+document.getElementById('rFires').textContent=DATA.fires;
+if(!DATA.fires)document.getElementById('rFiresLbl').textContent='fire sales in league history so far — the band is here to keep it that way.';
+
+const strip=document.getElementById('tableStrip');
+for(let r=1;r<=16;r++){
+  const c=$('span','tmini');c.appendChild($('b',null,'$'+C.table[r]));c.appendChild($('i',null,'R'+r));
+  strip.appendChild(c);
+}
+
+/* hypothetical fire-sale demo: seller ships 2 studs ($30+$26) for a $2 body + picks */
+const scale=280;
+const demo=[{name:'The buyer',from:150,to:204,note:'fits under the cap — legal'},
+ {name:'The seller',from:180,to:126,note:'through the floor — DEAL DEAD'}];
+demo.forEach(d=>{
+  const row=$('div','cbrow');
+  const nm=$('div','cbname');nm.appendChild($('span','cbteam',d.name));row.appendChild(nm);
+  const tr=$('div','cbtrack');
+  const bad=d.to>C.cap||d.to<C.floor;
+  const seg=$('div','cbseg '+(bad?'k':'d'));seg.style.left='0';seg.style.width=(d.to/scale*100)+'%';
+  if(bad)seg.style.background='var(--coral)';
+  tr.appendChild(seg);
+  const band=$('div','cbrange');band.style.left=(Math.min(d.from,d.to)/scale*100)+'%';
+  band.style.width=(Math.abs(d.from-d.to)/scale*100)+'%';tr.appendChild(band);
+  /* direction arrow: where this roster's salary moves and by how much */
+  const gain=d.to>d.from,delta=Math.abs(d.to-d.from);
+  const ar=$('div','cbarrow '+(bad?'bad2':'good2'),gain?('+$'+delta+' ⟶'):('⟵ −$'+delta));
+  ar.style.left=(((d.from+d.to)/2)/scale*100)+'%';
+  tr.appendChild(ar);
+  const cl=$('div','cbcap');cl.style.left=(C.cap/scale*100)+'%';tr.appendChild(cl);
+  const fl=$('div','cbfloor');fl.style.left=(C.floor/scale*100)+'%';tr.appendChild(fl);
+  row.appendChild(tr);
+  const val=$('div','cbval');
+  val.appendChild($('b',bad?'bad':'','$'+d.from+' → $'+d.to));
+  val.appendChild($('span','mut small',d.note));
+  row.appendChild(val);
+  document.getElementById('bandDemo').appendChild(row);
+});
+</script>

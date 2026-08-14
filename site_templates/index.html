@@ -1,0 +1,652 @@
+<meta charset="utf-8">
+<title>GGG League</title>
+<link rel="stylesheet" href="ggg.css">
+__NAV__
+<div class="wrap wide">
+  <header class="hero dashhero">
+    <div>
+      <div class="eyebrow">GGG League &middot; Est. 2024 &middot; 10 teams &middot; 0.5 PPR</div>
+      <h1 id="heroTitle">Whose team is this?</h1>
+      <p class="lede" id="heroSub">Pick your team — this becomes your franchise dashboard.</p>
+    </div>
+    <div class="teambar" id="teambar"></div>
+    <div id="labbanner"></div>
+  </header>
+
+  <div id="identity"></div>
+  <div class="dash" id="dash"></div>
+</div>
+__FOOT__
+<script>
+const DATA = /*__DATA__*/{};
+const CFG = DATA.cfg;
+/* locked rules: flattened table, keepers cap-counted, keepers round-slot on the board.
+   Keeper count is the open vote: <=3 keeps = Plan A (no budget); a 4th/5th keep
+   previews Plan B, where the whole keeper class must fit the $budget5 budget. */
+let TABLE = CFG.table, KCAP = 'on', SLOT = 'round', LAB = null;
+try{
+  const L = JSON.parse(localStorage.getItem('ggg-lab-v7'));
+  if(L && L.apply === 'on'){
+    LAB = L;
+    if(typeof L.cap === 'number') CFG.cap = (L.cap >= 180 ? L.cap : Infinity);
+    if(typeof L.floor === 'number') CFG.floor = L.floor;
+    if(typeof L.budget === 'number' && L.budget > 0) CFG.budget5 = L.budget;
+  }
+}catch(e){}
+const CAPTXT = isFinite(CFG.cap) ? ('$' + CFG.cap) : 'no cap';
+const BUD5 = CFG.budget5;
+const escal = (r,s)=>{const n=r-s;return n>=1?TABLE[n]:TABLE[1]+6*(1-n);};
+/* keep round: fresh 2025 draftees keep at their drafted round for one year
+   (kp=0, no escalation yet); players who were already keepers in 2025 (kp=1)
+   escalate one round now. kr26 = the round the keep actually occupies. */
+DATA.teams.forEach(tm=>tm.players.forEach(p=>{if(p.el){
+  p.k26=escal(p.r,p.kp?1:0);p.k27=escal(p.r,p.kp?2:1);
+  p.kr26=Math.max(1,p.r-(p.kp?1:0));
+}}));
+const $ = (t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e;};
+
+/* ---------- state (keeper selections shared with the planner) ---------- */
+const LSKEY='ggg-keeper-v1', MYKEY='ggg-my-team';
+let kstate={team:0,picks:{}};
+try{const s=JSON.parse(localStorage.getItem(LSKEY));if(s&&s.picks)kstate=s;}catch(e){}
+const saveK=()=>{try{localStorage.setItem(LSKEY,JSON.stringify(kstate));}catch(e){}};
+let myTeam=parseInt(localStorage.getItem(MYKEY) ?? '-1');
+/* official Sleeper keepers are LOCKED IN for that team (can't be unticked),
+   but extra picks on top are allowed up to the 5-keep cap so anyone can
+   preview a fuller class; teams without official keepers are fully free */
+let OFFICIAL={};
+DATA.teams.forEach((tm,ti)=>{if(tm.ok&&tm.ok.length)OFFICIAL[ti]=tm.ok;});
+try{const c=JSON.parse(localStorage.getItem('ggg-okeep-v1'));if(c&&c.map)OFFICIAL=c.map;}catch(e){}
+const isOfficial=ti=>Array.isArray(OFFICIAL[ti])&&OFFICIAL[ti].length>0;
+const sel=ti=>{
+  const o=OFFICIAL[ti]||[];
+  const extra=(kstate.picks[ti]||[]).filter(i=>!o.includes(i));
+  return new Set([...o,...extra].slice(0,CFG.maxKeep));
+};
+async function syncSleeper(){
+  if(!DATA.leagueId2026)return null;
+  const rosters=await fetch('https://api.sleeper.app/v1/league/'+DATA.leagueId2026+'/rosters').then(r=>r.json());
+  const map={};
+  (rosters||[]).forEach(r=>{
+    const ti=DATA.teams.findIndex(t=>t.rid===r.roster_id);
+    if(ti<0)return;
+    const idx=[];
+    (r.keepers||[]).map(String).forEach(pid=>{
+      const i=DATA.teams[ti].players.findIndex(p=>p.pid===pid);
+      if(i>=0)idx.push(i);
+    });
+    if(idx.length)map[ti]=idx;
+  });
+  OFFICIAL=map;
+  try{localStorage.setItem('ggg-okeep-v1',JSON.stringify({ts:Date.now(),map}));}catch(e){}
+  return map;
+}
+
+function evalTeam(ti){
+  const tm=DATA.teams[ti],chosen=sel(ti);
+  let keepSpend=0,maxSel=0,franchiseName=null;
+  chosen.forEach(pi=>{const p=tm.players[pi];keepSpend+=p.k26;
+    if(p.k26>maxSel){maxSel=p.k26;franchiseName=p.n;}});
+  const budgetSpend=(CFG.franchise&&chosen.size)?keepSpend-maxSel:keepSpend;
+  let next27=0;chosen.forEach(pi=>next27+=tm.players[pi].k27);
+  const k=chosen.size;
+  let draftSpend=0,fills=0,usedPicks=0,opening=0;
+  if(SLOT==='round'){
+    const picks16=tm.picks.slice(0,16);
+    picks16.forEach(p=>draftSpend+=TABLE[p.r]);   // keepers occupy their round's pick
+    if(KCAP==='off'){
+      let kr=0;chosen.forEach(pi=>{const p=tm.players[pi];if(p.el)kr+=TABLE[p.r];});
+      draftSpend=Math.max(0,draftSpend-kr);
+    }
+    usedPicks=picks16.length;
+    opening=draftSpend;
+  }else{
+    const picks=tm.picks.slice();
+    picks.splice(Math.max(0,picks.length-k),k);
+    const slots=16-k,used=picks.slice(0,slots);
+    used.forEach(p=>draftSpend+=TABLE[p.r]);
+    fills=Math.max(0,slots-used.length);
+    usedPicks=used.length;
+    opening=(KCAP==='off'?0:keepSpend)+draftSpend+fills*CFG.waiver;
+  }
+  return {keepSpend,budgetSpend,franchiseName,next27,k,draftSpend,fills,usedPicks,opening,
+          overBudget:k>3&&keepSpend>BUD5,   // budget only exists in the 4-5 keep world
+          overCount:k>CFG.maxKeep};
+}
+const capital=ti=>DATA.teams[ti].picks.reduce((a,p)=>a+TABLE[p.r],0);
+
+/* ---------- helpers ---------- */
+function card(span,title,chipTxt){
+  const c=$('div','dcard c'+span);
+  const h=$('div','dcard-head');
+  h.appendChild($('h3','cardh',title));
+  if(chipTxt)h.appendChild($('span','chip soon',chipTxt));
+  c.appendChild(h);
+  return c;
+}
+function skel(card,lines){
+  for(let i=0;i<lines;i++){const s=$('div','skel');s.style.width=(88-i*14)+'%';card.appendChild(s);}
+}
+
+/* ---------- lab banner ---------- */
+if(LAB){
+  const b=document.getElementById('labbanner');
+  const wrap=$('div','labbanner');
+  wrap.appendChild($('span',null,'⚗️ Lab rules active on this device: cap '+CAPTXT
+    +' · floor '+(CFG.floor>0?('$'+CFG.floor):'off')
+    +' · 4+‑keeper budget $'+BUD5+' — '));
+  const a=document.createElement('a');a.href='lab.html';a.textContent='adjust or turn off in the Lab';
+  wrap.appendChild(a);
+  b.appendChild(wrap);
+}
+
+/* ---------- team picker ---------- */
+const bar=document.getElementById('teambar');
+DATA.teams.forEach((tm,ti)=>{
+  const b=$('button','tpill',tm.name);b.type='button';
+  b.addEventListener('click',()=>{myTeam=ti;localStorage.setItem(MYKEY,String(ti));render();});
+  bar.appendChild(b);
+});
+
+/* ---------- render ---------- */
+function render(){
+  [...bar.children].forEach((b,i)=>b.classList.toggle('active',i===myTeam));
+  renderIdentity();
+  renderDash();
+}
+
+function renderIdentity(){
+  const host=document.getElementById('identity');host.textContent='';
+  if(myTeam<0)return;
+  const tm=DATA.teams[myTeam],c=DATA.career.find(x=>x.name===tm.name);
+  document.getElementById('heroTitle').textContent=tm.name+' HQ';
+  const nowName=(c&&c.names.length)?c.names[c.names.length-1].tn:tm.name;
+  document.getElementById('heroSub').textContent=liveSub||'Keepers, cap, and what’s next for the 2026 season.';
+  if(!c)return;
+  const band=$('div','idband');
+  const badge=$('div','archbadge');
+  badge.appendChild($('div','idname',nowName));
+  badge.appendChild($('div','archname','2026'));
+  band.appendChild(badge);
+  const mid=$('div','idmid');
+  const chips=$('div','chiprow');
+  [['wk',c.w+'-'+c.l+' all-time'],
+   ...(c.titles?[['gold','🏆 ×'+c.titles]]:[]),
+   ...(c.toilets?[['fire','🚽 ×'+c.toilets]]:[]),
+   ['even','luck '+(c.luck>0?'+':'')+c.luck],
+   ['even',(c.pf/(c.w+c.l)).toFixed(1)+' PPG'],
+   ['even',c.high_weeks+' weekly highs']].forEach(([cls,txt])=>chips.appendChild($('span','chip '+cls,txt)));
+  mid.appendChild(chips);
+  band.appendChild(mid);
+  host.appendChild(band);
+}
+
+/* assign the chosen keepers to the team's held picks — the shared rule:
+   priciest keep first, exact keep round if that pick is free, otherwise the
+   next earlier free pick (covers traded-away rounds AND two keeps colliding
+   on the same round). Returns {picks16, asg: playerIndex -> pick item}. */
+function assignKeeps(tm,chosen){
+  const picks16=tm.picks.slice(0,16).map(p=>({type:'pick',r:p.r,from:p.from,cost:TABLE[p.r],name:null,pi:null}));
+  const asg={};
+  [...chosen].map(pi=>({pi,p:tm.players[pi]})).filter(x=>x.p.el)
+    .sort((a,b)=>b.p.k26-a.p.k26)
+    .forEach(({pi,p})=>{
+      const it=picks16.find(x=>x.pi===null&&x.r===p.kr26)
+        ||[...picks16].reverse().find(x=>x.pi===null&&x.r<=p.kr26)
+        ||picks16.find(x=>x.pi===null);
+      if(it){it.pi=pi;asg[pi]=it;}
+    });
+  return {picks16,asg};
+}
+
+function anatomyCard(tm,ev){
+  const c=card(12,'Cap anatomy — where every dollar sits');
+  const chosen=sel(myTeam);
+
+  /* franchise keep, called out above the bar */
+  let frName=null,frCost=0;
+  if(CFG.franchise&&chosen.size){
+    chosen.forEach(pi=>{const p=tm.players[pi];if(p.el&&p.k26>frCost){frCost=p.k26;frName=p.n;}});
+  }
+  if(frName){
+    const row=$('div','chiprow');row.style.margin='6px 0 0';
+    row.appendChild($('span','chip gold','⭐ FRANCHISE KEEP — budget-exempt: '+frName+' ($'+frCost+')'));
+    c.appendChild(row);
+  }
+
+  /* build the cap items: every keeper and every 2026 pick, priced */
+  const items=[];
+  if(SLOT==='round'){
+    const {picks16,asg}=assignKeeps(tm,chosen);
+    Object.entries(asg).forEach(([pi,it])=>{
+      it.type='keeper';it.name=tm.players[pi].n;
+      if(KCAP==='off'){it.cost=0;it.exempt=true;}
+    });
+    items.push(...picks16);
+  }else{
+    [...chosen].map(pi=>tm.players[pi]).filter(p=>p.el).forEach(p=>
+      items.push({type:'keeper',name:p.n,r:p.r,cost:KCAP==='off'?0:p.k26,exempt:KCAP==='off'}));
+    const picks=tm.picks.slice();
+    picks.splice(Math.max(0,picks.length-chosen.size),chosen.size);
+    picks.slice(0,16-chosen.size).forEach(p=>items.push({type:'pick',r:p.r,from:p.from,cost:TABLE[p.r]}));
+  }
+  items.sort((a,b)=>b.cost-a.cost);
+  const frItem=frName?items.find(x=>x.type==='keeper'&&(x.name===frName)):null;
+
+  /* the bar */
+  const scale=Math.max(isFinite(CFG.cap)?CFG.cap+30:0,ev.opening+15,(CFG.floor||0)+40,280);
+  const wrap=$('div','anatwrap');
+  const bar=$('div','anatbar');
+  const tip=$('div','anattip');tip.hidden=true;
+  let acc=0;
+  items.forEach(it=>{
+    if(it.cost<=0)return;
+    const seg=$('div','anatseg '+(it.type==='keeper'?'k':'d')+(it===frItem?' fr':''));
+    const pct=it.cost/scale*100;
+    seg.style.width=pct+'%';
+    const lab=(it===frItem?'⭐ ':'')+(it.type==='keeper'?it.name:'R'+it.r)+' · $'+it.cost;
+    const full=lab+(it.type==='pick'?(' pick'+(it.from?' via '+it.from:'')):' — keeper');
+    seg.title=full;
+    if(it.cost/scale>=0.022)seg.appendChild($('span',null,lab));
+    const center=Math.min(92,Math.max(8,acc+pct/2));
+    const show=()=>{tip.textContent=full;tip.style.left=center+'%';tip.hidden=false;};
+    seg.addEventListener('mouseenter',show);
+    seg.addEventListener('click',show);
+    seg.addEventListener('mouseleave',()=>tip.hidden=true);
+    acc+=pct;
+    bar.appendChild(seg);
+  });
+  wrap.appendChild(bar);
+  wrap.appendChild(tip);
+  if(isFinite(CFG.cap)){
+    const l=$('div','anatline');l.style.left=(CFG.cap/scale*100)+'%';wrap.appendChild(l);
+    const t=$('div','anattag','CAP $'+CFG.cap);t.style.left=(CFG.cap/scale*100)+'%';wrap.appendChild(t);
+  }
+  if(CFG.floor>0){
+    const l=$('div','anatline floor');l.style.left=(CFG.floor/scale*100)+'%';wrap.appendChild(l);
+    const t=$('div','anattag floor','FLOOR $'+CFG.floor);t.style.left=(CFG.floor/scale*100)+'%';wrap.appendChild(t);
+  }
+  c.appendChild(wrap);
+
+  /* the totals line */
+  const tot=$('div','anattotal');
+  const d2=CFG.cap-ev.opening;
+  tot.appendChild($('b',ev.opening>CFG.cap?'bad':'','Opening cap $'+ev.opening));
+  let txt=isFinite(CFG.cap)?(d2>=0?(' — $'+d2+' under the cap'):(' — $'+(-d2)+' OVER the cap')):' — no cap set';
+  if(CFG.floor>0)txt+=ev.opening>=CFG.floor?(' · $'+(ev.opening-CFG.floor)+' above the floor'):(' · $'+(CFG.floor-ev.opening)+' BELOW the floor');
+  tot.appendChild(document.createTextNode(txt));
+  c.appendChild(tot);
+
+  /* the legend: every item, largest to smallest */
+  const leg=$('div','anatlegend');
+  items.forEach(it=>{
+    const cls=it===frItem?'chip gold':(it.type==='keeper'?'chip mini':'chip even');
+    const lab=(it===frItem?'⭐ ':'')
+      +(it.type==='keeper'?it.name:('R'+it.r+(it.from?' via '+it.from:'')))
+      +(it.exempt?' — exempt':(' $'+it.cost));
+    leg.appendChild($('span',cls,lab));
+  });
+  c.appendChild(leg);
+  c.appendChild($('p','cardnote','Every 2026 cap dollar for '+tm.name+', largest hit first. Solid = keepers, faded = draft picks — each keeper sits in his keep round: the round he was drafted, or one earlier if he was already a keeper in 2025. If that round’s pick was traded away — or two keeps want the same round — the cheaper keep moves up to the next earlier pick. Hover (or tap) any slice for its label.'));
+  return c;
+}
+
+function renderDash(){
+  const dash=document.getElementById('dash');dash.textContent='';
+  if(myTeam<0){
+    const c=card(12,'Pick your team above');
+    c.appendChild($('p','mut','The dashboard builds itself around your franchise — keepers, cap, grudges, draft capital, and your whole history.'));
+    dash.appendChild(c);
+    dash.appendChild(capBoardCard(12));
+    return;
+  }
+  const tm=DATA.teams[myTeam],c=DATA.career.find(x=>x.name===tm.name),ev=evalTeam(myTeam);
+
+  /* --- keeper corner (span 7) --- */
+  const kc=card(7,'Keeper corner — tap to keep');
+  const meters=$('div','kmeters');
+  const m1=$('div');
+  const off=OFFICIAL[myTeam]||[];
+  const locked=off.length>0;
+  const fiveMode=ev.k>3;   // a 4th/5th keep flips the view into the 5-keeper-rule preview
+  m1.appendChild($('div','mlabel',(fiveMode
+      ?('5-KEEPER RULE PREVIEW · budget $'+ev.keepSpend+' / $'+BUD5)
+      :('3-keeper rules · keeper salaries $'+ev.keepSpend+' · no budget'))
+    +' · '+ev.k+'/'+(fiveMode?5:3)+' slots'
+    +(locked?(' — 🔒 '+off.length+' official from Sleeper'):'')
+    +(fiveMode?(ev.overBudget?' — OVER BUDGET':'')
+      :(ev.k===3?' — tap a 4th to preview the 5-keeper rule':''))));
+  if(fiveMode){
+    const met=$('div','meter');const fb=$('div','fillbar'+(ev.overBudget?' over':''));
+    fb.style.width=Math.min(100,ev.keepSpend/BUD5*100)+'%';met.appendChild(fb);m1.appendChild(met);
+  }
+  meters.appendChild(m1);
+  const m2=$('div');
+  const d=CFG.cap-ev.opening;
+  m2.appendChild($('div','mlabel','Opening cap $'+ev.opening+' / '+CAPTXT+' · '
+    +(isFinite(CFG.cap)?(d>=0?('$'+d+' headroom'):('$'+(-d)+' over — cap jail')):'uncapped')));
+  const met2=$('div','meter');const fb2=$('div','fillbar'+(ev.opening>CFG.cap?' over':''));
+  fb2.style.width=Math.min(100,ev.opening/(isFinite(CFG.cap)?CFG.cap:250)*100)+'%';met2.appendChild(fb2);m2.appendChild(met2);
+  meters.appendChild(m2);
+  kc.appendChild(meters);
+  const list=$('div','roster tallroster');
+  /* where each selected keep actually lands (traded rounds + collisions) */
+  const KA=assignKeeps(tm,sel(myTeam)).asg;
+  tm.players.map((p,pi)=>({p,pi}))
+    .filter(x=>x.p.el && x.p.pos!=='DEF')
+    .sort((a,b)=>b.p.k26-a.p.k26)
+    .forEach(({p,pi})=>{
+    const isOff=off.includes(pi);
+    const on=sel(myTeam).has(pi);
+    const atLimit=!on&&sel(myTeam).size>=CFG.maxKeep;
+    const noPick=!tm.picks.some(x=>x.r===p.kr26);   // keep-round pick traded away
+    const a=on?KA[pi]:null;
+    const moved=!!(a&&a.r!==p.kr26);
+    let warn='',badge='R'+p.kr26,bad=false;
+    if(moved){
+      bad=true;badge='⚠ R'+a.r;
+      const dir=(a.r<p.kr26?'moves up to R':'moves to R')+a.r;
+      if(noPick){warn=' · ⚠ R'+p.kr26+' pick traded away — '+dir;}
+      else{
+        const occ=Object.entries(KA).find(([qi,it])=>+qi!==pi&&it.r===p.kr26);
+        warn=' · ⚠ R'+p.kr26+' taken by '+(occ?tm.players[+occ[0]].n:'another keep')+' — '+dir;
+      }
+    }else if(on&&!a){
+      bad=true;badge='⚠ —';warn=' · ⚠ no open pick left for this keep';
+    }else if(!on&&noPick){
+      bad=true;badge='⚠ R'+p.kr26;
+      warn=' · ⚠ R'+p.kr26+' pick traded away — would use your next earlier pick';
+    }
+    const row=$('div','prow'+(on?' on':'')+(atLimit?' inel':''));
+    row.appendChild($('span','tick',on?(isOff?'🔒':'✓'):''));
+    const im=document.createElement('img');im.className='pshot';im.alt='';im.loading='lazy';
+    im.src='https://sleepercdn.com/content/nfl/players/'+p.pid+'.jpg';
+    im.onerror=function(){this.style.visibility='hidden';};
+    row.appendChild(im);
+    const nm=$('span','pname',p.n);nm.appendChild($('span','meta',p.pos+(p.t?' · '+p.t:'')
+      +(p.kp?' · kept ’25':'')
+      +(isOff?' · 🔒 set in Sleeper':'')
+      +warn));
+    row.appendChild(nm);
+    row.appendChild($('span','rnd'+(bad?' bad':''),badge));
+    row.appendChild($('span','cost','$'+p.k26));
+    row.appendChild($('span','next','→ $'+p.k27));
+    row.tabIndex=0;
+    const tog=()=>{
+      if(isOff)return;   // this keep is official in Sleeper — change it there
+      const s2=sel(myTeam);
+      if(!s2.has(pi)&&s2.size>=CFG.maxKeep)return;   // all slots used — untick one first
+      const ex=new Set((kstate.picks[myTeam]||[]).filter(i=>!off.includes(i)));
+      ex.has(pi)?ex.delete(pi):ex.add(pi);
+      kstate.picks[myTeam]=[...ex];saveK();render();};
+    row.addEventListener('click',tog);
+    row.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();tog();}});
+    list.appendChild(row);
+  });
+  kc.appendChild(list);
+  dash.appendChild(kc);
+
+  /* --- cap board (span 5) --- */
+  dash.appendChild(capBoardCard(5));
+
+  /* --- cap anatomy (span 12): every keeper and pick as its own segment --- */
+  dash.appendChild(anatomyCard(tm,ev));
+
+  /* --- countdown + vitals (span 3) --- */
+  const cd=card(3,'Season countdown');
+  /* kickoff Sep 10 · draft 3 days before · keeper deadline 1 week before the draft */
+  const EVENTS=[['NFL kickoff',new Date('2026-09-10T20:20:00-04:00')]];
+  const dTo=d3=>Math.max(0,Math.ceil((d3-Date.now())/86400000));
+  const fmt=d3=>d3.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const nxt=EVENTS.find(([,d3])=>d3>Date.now())||EVENTS[EVENTS.length-1];
+  const rows=$('div','cdrows');
+  EVENTS.forEach(([n2,d3])=>{
+    const r=$('div','cdrow');
+    const left=$('div');
+    left.appendChild($('div','cdlab',n2));
+    left.appendChild($('div','mut small',fmt(d3)));
+    r.appendChild(left);
+    const num=$('div','cdnum'+(n2===nxt[0]?' good':''),String(dTo(d3)));
+    num.appendChild($('small',null,'d'));
+    r.appendChild(num);
+    rows.appendChild(r);
+  });
+  cd.appendChild(rows);
+  cd.appendChild($('div','vitals'));
+  const rr=$('div','vrow');rr.appendChild($('span','mut','Sleeper status'));
+  rr.appendChild($('span',null,DATA.leagueId2026?'renewed ✓ · draft not set':'waiting on renewal'));
+  cd.lastChild.appendChild(rr);
+  dash.appendChild(cd);
+
+  /* --- draft capital (span 3) --- */
+  const dc=card(3,'2026 draft capital');
+  const cap$=capital(myTeam);
+  const ranks=DATA.teams.map((_,i)=>capital(i)).sort((a,b)=>b-a);
+  const myRank=ranks.indexOf(cap$)+1;
+  const bn2=$('div','bignum');bn2.appendChild(document.createTextNode('$'+cap$));
+  bn2.appendChild($('small',null,' · #'+myRank+' in league'));
+  dc.appendChild(bn2);
+  const pcs=$('div','pickchips');
+  tm.picks.forEach(p=>{const ch=$('span','pk','R'+p.r);if(p.from)ch.appendChild($('span','frm',' · '+p.from));pcs.appendChild(ch);});
+  dc.appendChild(pcs);
+  dash.appendChild(dc);
+
+  /* --- matchup center + playoff odds placeholder (span 6) --- */
+  const mc=card(6,'Matchup center & playoff odds','LIVE WK 1');
+  const mcrow=$('div','mcrow');
+  const mcl=$('div','mcl');
+  const vs=$('div','vsrow');
+  vs.appendChild($('div','vsteam',tm.name));
+  vs.appendChild($('div','vsmark','VS'));
+  vs.appendChild($('div','vsteam mut','Week 1 opponent'));
+  mcl.appendChild(vs);
+  skel(mcl,3);
+  mcrow.appendChild(mcl);
+  const gauge=$('div','gauge');gauge.appendChild($('div','gaugev','—%'));
+  mcrow.appendChild(gauge);
+  mc.appendChild(mcrow);
+  mc.appendChild($('p','cardnote','Live scores, win probability from a Monte Carlo sim of the remaining schedule, your all-time record vs this opponent, and their cap sheet.'));
+  dash.appendChild(mc);
+
+  /* ======= everything below is historical → collapsible section ======= */
+  const hist=$('div','dash histgrid');
+
+  /* --- season finishes (span 12) --- */
+  const tlc=card(12,'Season finishes');
+  const tl=$('div','timeline');
+  DATA.finishes[tm.name].forEach(f=>{
+    const cell=$('div','tcell '+(f.champ?'gold':(f.toilet?'fire':'')));
+    cell.appendChild($('div','tyear',f.s));
+    cell.appendChild($('div','tplace',f.champ?'🏆':(f.toilet?'🚽':'#'+f.place)));
+    tl.appendChild(cell);
+  });
+  tlc.appendChild(tl);
+  hist.appendChild(tlc);
+
+  /* --- manager DNA (span 3) --- */
+  const dna=card(3,'Manager DNA');
+  [['Trades (career)',c.trades_n],['Waiver/FA adds',c.adds_n],
+   ['Trades won / fleeced',c.fleeces+' / '+c.fleeced],
+   ['Avg bench pts left',c.avg_bench],
+   ['Best win streak','W'+c.streak_w],['Worst skid','L'+c.streak_l]]
+    .forEach(([k2,v])=>{const r=$('div','vrow');r.appendChild($('span','mut',k2));r.appendChild($('span',null,String(v)));dna.appendChild(r);});
+  hist.appendChild(dna);
+
+  /* --- names history (span 3) --- */
+  const nh=card(3,'Names you’ve gone by');
+  const seen=new Set();
+  [...c.names].reverse().forEach(n=>{
+    if(seen.has(n.tn))return;seen.add(n.tn);
+    const r=$('div','vrow');r.appendChild($('span','mut',n.s));r.appendChild($('span','tn',n.tn));nh.appendChild(r);
+  });
+  hist.appendChild(nh);
+
+  /* --- grudges (span 6) --- */
+  const g=card(6,'Career grudges');
+  const mine=DATA.h2h[tm.name]||{};
+  const ent=Object.entries(mine);
+  if(ent.length){
+    const best=ent.reduce((a,b)=>(b[1].w-b[1].l)>(a[1].w-a[1].l)?b:a);
+    const worst=ent.reduce((a,b)=>(b[1].w-b[1].l)<(a[1].w-a[1].l)?b:a);
+    const duo=$('div','nemduo');
+    const v1=$('div','nemcard good2');
+    v1.appendChild($('div','cardh','Your victim'));
+    v1.appendChild($('div','nemname',best[0]));
+    v1.appendChild($('div','nemrec good',best[1].w+'-'+best[1].l));
+    const v2=$('div','nemcard bad2');
+    v2.appendChild($('div','cardh','Your nemesis'));
+    v2.appendChild($('div','nemname',worst[0]));
+    v2.appendChild($('div','nemrec bad',worst[1].w+'-'+worst[1].l));
+    duo.appendChild(v1);duo.appendChild(v2);
+    g.appendChild(duo);
+  }
+  const gr=$('div','grudges');
+  ent.sort((a,b)=>(b[1].w-b[1].l)-(a[1].w-a[1].l)).forEach(([rival,rec])=>{
+    const cls=rec.w>rec.l?'winrec':(rec.w<rec.l?'loserec':'');
+    const cell=$('div','gcell');
+    cell.appendChild($('div','gname',rival));
+    cell.appendChild($('div','grec '+cls,rec.w+'-'+rec.l));
+    gr.appendChild(cell);
+  });
+  g.appendChild(gr);
+  hist.appendChild(g);
+
+  /* --- team history dropdown (span 12) --- */
+  const det=document.createElement('details');
+  det.className='histbox';
+  const sum=document.createElement('summary');
+  sum.textContent='Team history & all-time stats';
+  det.appendChild(sum);
+  det.appendChild(hist);
+  dash.appendChild(det);
+}
+
+let cbFilter='all', cbYear='2026';
+function capBoardCard(span){
+  const cb=card(span,'League cap board');
+  const yr=$('div','filterrow tight');
+  [['2026','2026'],['2027','2027 outlook']].forEach(([key,lab])=>{
+    const b=$('button','tpill sm'+(cbYear===key?' active':''),lab);b.type='button';
+    b.addEventListener('click',()=>{cbYear=key;render();});
+    yr.appendChild(b);
+  });
+  cb.appendChild(yr);
+
+  if(cbYear!=='2026'){
+    cb.appendChild($('p','cardnote2','2027 draft capital only — each team’s held 2027 picks priced by the salary table. Keeper costs can’t exist yet; this is the floor each roster starts from.'));
+    const rows=DATA.teams.map(tm=>{
+      const picks=tm.p27.slice(0,16);
+      return {name:tm.name,held:tm.p27.length,val:picks.reduce((a,p)=>a+TABLE[p.r],0),
+              acquired:tm.p27.filter(p=>p.from).length};
+    }).sort((a,b)=>b.val-a.val);
+    rows.forEach(r=>{
+      const row=$('div','cbrow');
+      const nm=$('div','cbname');
+      nm.appendChild($('span','cbteam',r.name));
+      nm.appendChild($('span','chip mini',r.held+' picks'));
+      row.appendChild(nm);
+      const track=$('div','cbtrack');
+      const seg=$('div','cbseg d');
+      seg.style.left='0';seg.style.width=(Math.min(r.val,250)/250*100)+'%';
+      track.appendChild(seg);
+      const cap=$('div','cbcap');cap.style.left=(CFG.cap/250*100)+'%';track.appendChild(cap);
+      row.appendChild(track);
+      const val=$('div','cbval');
+      val.appendChild($('b',r.val>CFG.cap?'bad':'','$'+r.val));
+      val.appendChild($('span','mut small',r.acquired?(r.acquired+' acquired'):'own picks'));
+      row.appendChild(val);
+      cb.appendChild(row);
+    });
+    cb.appendChild($('p','cardnote','Updates automatically as 2027 picks get traded.'));
+    return cb;
+  }
+
+  const fr=$('div','filterrow tight');
+  [['all','Total'],['k','Keepers only'],['d','Draft picks only']].forEach(([key,lab])=>{
+    const b=$('button','tpill sm'+(cbFilter===key?' active':''),lab);b.type='button';
+    b.addEventListener('click',()=>{cbFilter=key;render();});
+    fr.appendChild(b);
+  });
+  cb.appendChild(fr);
+  let allNote=KCAP==='off'
+    ?'Cap total (keepers are cap-exempt — governed by the budget). '
+    :'Opening cap by source — solid = keepers, faded = draft picks. ';
+  allNote+=isFinite(CFG.cap)?('Red dashed line = '+CAPTXT+' cap'):'No cap set';
+  if(CFG.floor>0){
+    allNote+='; gold dashed line = the $'+CFG.floor+' floor — trades can’t leave a roster '
+      +(isFinite(CFG.cap)?'above the cap or ':'')+'below it.';
+  }else{
+    allNote+='.';
+  }
+  const notes={all:allNote,
+               k:'Keeper salary only. Gold line = the $'+BUD5+' budget — it only applies to a team keeping 4 or 5.',
+               d:'Draft-round salary only, from the picks each team holds for 2026.'};
+  cb.appendChild($('p','cardnote2',notes[cbFilter]));
+  const scale=cbFilter==='k'?Math.max(60,BUD5+15):250;
+  const capLine=cbFilter==='k'?BUD5:(cbFilter==='d'?null:(isFinite(CFG.cap)?CFG.cap:null));
+  const floorLine=(cbFilter==='all'&&CFG.floor>0)?CFG.floor:null;
+  const rows=DATA.teams.map((tm,ti)=>{
+    const ev=evalTeam(ti);
+    const val=cbFilter==='k'?ev.keepSpend:(cbFilter==='d'?ev.draftSpend:ev.opening);
+    return {name:tm.name,ti,ev,val};
+  }).sort((a,b)=>b.val-a.val);
+  rows.forEach(r=>{
+    const row=$('div','cbrow');
+    const nm=$('div','cbname'+(r.ti===myTeam?' good':''));
+    nm.appendChild($('span','cbteam',r.name));
+    nm.appendChild($('span','chip mini',r.ev.k+' K'));
+    row.appendChild(nm);
+    const track=$('div','cbtrack');
+    let x=0;
+    /* round-slot: keeper salaries live INSIDE the pick total — carve them out
+       of the draft segment instead of stacking on top (no double counting) */
+    const kseg=Math.min(r.ev.keepSpend,r.ev.draftSpend);
+    const segs=cbFilter==='all'?[['k',kseg],['d',r.ev.draftSpend-kseg],['f',r.ev.fills*CFG.waiver]]
+      :(cbFilter==='k'?[['k',r.ev.keepSpend]]:[['d',r.ev.draftSpend]]);
+    segs.forEach(([cls,v])=>{
+      if(v<=0)return;
+      const seg=$('div','cbseg '+cls);
+      seg.style.left=(x/scale*100)+'%';seg.style.width=(Math.min(v,scale-x)/scale*100)+'%';
+      track.appendChild(seg);x+=v;
+    });
+    if(capLine!==null){const cap=$('div',cbFilter==='k'?'cbfloor':'cbcap');cap.style.left=(capLine/scale*100)+'%';track.appendChild(cap);}
+    if(floorLine!==null){const fl=$('div','cbfloor');fl.style.left=(floorLine/scale*100)+'%';track.appendChild(fl);}
+    row.appendChild(track);
+    const val=$('div','cbval');
+    const over=(cbFilter==='k'&&r.ev.overBudget)||(cbFilter==='all'&&r.val>CFG.cap);
+    val.appendChild($('b',over?'bad':'','$'+r.val));
+    const sub=cbFilter==='all'
+      ?(KCAP==='off'?('keepers $'+r.ev.keepSpend+' exempt'):((r.val?Math.round(r.ev.keepSpend/r.val*100):0)+'% keepers'))
+      :(cbFilter==='k'?(r.ev.k+' keep'+(r.ev.k===1?'':'s')+(r.ev.k>3?' · budget applies':'')):r.ev.usedPicks+' picks');
+    val.appendChild($('span','mut small',sub));
+    row.appendChild(val);
+    cb.appendChild(row);
+  });
+  cb.appendChild($('p','cardnote','Teams that set official keepers in Sleeper show them automatically; keeper taps made on this device override what YOU see, nobody else.'));
+  return cb;
+}
+
+
+let liveSub=null;
+render();
+
+/* live keeper sync — official Sleeper keepers refresh on every visit */
+syncSleeper().then(m=>{if(m)render();}).catch(()=>{});
+
+/* live 2026 status check — the league is renewed; watch for the draft getting scheduled */
+(async function(){
+  try{
+    if(!DATA.leagueId2026)return;
+    const base='https://api.sleeper.app/v1/league/'+DATA.leagueId2026;
+    const [lg,drafts]=await Promise.all([
+      fetch(base).then(r=>r.json()),fetch(base+'/drafts').then(r=>r.json())]);
+    const d=(drafts||[])[0];
+    const when=d&&d.start_time
+      ?new Date(d.start_time).toLocaleDateString('en-US',{month:'short',day:'numeric'}):null;
+    liveSub=lg.name+' is renewed on Sleeper ('+lg.status.replace('_',' ')+') — '
+      +(when?('draft scheduled for '+when):'draft not scheduled yet')
+      +'. Official keepers sync here as teams set them.';
+    document.getElementById('heroSub').textContent=liveSub;
+  }catch(e){}
+})();
+</script>

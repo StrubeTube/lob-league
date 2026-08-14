@@ -1,0 +1,72 @@
+<meta charset="utf-8">
+<title>GGG League — Record Book</title>
+<link rel="stylesheet" href="ggg.css">
+__NAV__
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow">GGG League &middot; All-time</div>
+    <h1>The Record Book</h1>
+    <p class="lede">Every regular-season week since 2024, ranked, sorted, and weaponized for the group chat.</p>
+  </header>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">Luck, quantified</div><h2>Who the schedule loves</h2>
+    <p class="sec-note">All-play: your record if you'd played all nine teams every single week. Luck = actual wins minus deserved wins. Positive means the schedule carried you.</p></div>
+    <div class="card" id="luck"></div>
+  </section>
+
+  <div class="recgrid">
+    <section><div class="sec-head"><h2>🔥 Highest weeks ever</h2></div><div class="card" id="high"></div></section>
+    <section><div class="sec-head"><h2>🥶 Lowest weeks ever</h2></div><div class="card" id="low"></div></section>
+    <section><div class="sec-head"><h2>💥 Biggest blowouts</h2></div><div class="card" id="blow"></div></section>
+    <section><div class="sec-head"><h2>😱 Closest finishes</h2></div><div class="card" id="close"></div></section>
+    <section><div class="sec-head"><h2>💔 Most points in a loss</h2></div><div class="card" id="bigloss"></div></section>
+    <section><div class="sec-head"><h2>🍀 Cheapest wins ever</h2></div><div class="card" id="cheapwin"></div></section>
+  </div>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">Lineup malpractice</div><h2>🪑 The bench blunder hall</h2>
+    <p class="sec-note">Most points left sitting on the bench in a single week. The bench doesn't forget.</p></div>
+    <div class="card" id="blunders"></div>
+  </section>
+</div>
+__FOOT__
+<script>
+const DATA = /*__DATA__*/{};
+const $ = (t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e;};
+const ctx = e => e.s + ' wk' + e.wk;
+
+/* luck bars */
+(function(){
+  const host = document.getElementById('luck');
+  const rows = [...DATA.career].filter(c=>c.seasons>=2||c.active).sort((a,b)=>b.luck-a.luck);
+  const max = Math.max(...rows.map(r=>Math.abs(r.luck)), 1);
+  rows.forEach(c=>{
+    const row = $('div','luckrow');
+    row.appendChild($('span','lname', c.name));
+    const track = $('div','lucktrack');
+    const bar = $('div','luckbar ' + (c.luck>=0?'pos':'neg'));
+    bar.style.width = (Math.abs(c.luck)/max*50) + '%';
+    if(c.luck>=0) bar.style.left='50%'; else bar.style.right='50%';
+    track.appendChild(bar);
+    const mid = $('div','luckmid'); track.appendChild(mid);
+    row.appendChild(track);
+    row.appendChild($('span','lval ' + (c.luck>1?'good':(c.luck<-1?'bad':'')), (c.luck>0?'+':'')+c.luck.toFixed(1)));
+    host.appendChild(row);
+  });
+})();
+
+function list(id, items, fmt){
+  const host = document.getElementById(id);
+  const ol = $('ol','reclist');
+  items.forEach(e=>{ const li=$('li'); fmt(li,e); ol.appendChild(li); });
+  host.appendChild(ol);
+}
+list('high', DATA.records.high_weeks, (li,e)=>{ li.appendChild($('b',null,e.pts.toFixed(1))); li.appendChild(document.createTextNode(' — '+e.name+' · '+ctx(e))); });
+list('low', DATA.records.low_weeks, (li,e)=>{ li.appendChild($('b','bad',e.pts.toFixed(1))); li.appendChild(document.createTextNode(' — '+e.name+' · '+ctx(e))); });
+list('blow', DATA.records.blowouts, (li,e)=>{ li.appendChild($('b',null,'+'+e.margin.toFixed(1))); li.appendChild(document.createTextNode(' — '+e.w+' ('+e.w_pts.toFixed(1)+') over '+e.l+' ('+e.l_pts.toFixed(1)+') · '+ctx(e))); });
+list('close', DATA.records.closest, (li,e)=>{ li.appendChild($('b',null,e.margin.toFixed(2))); li.appendChild(document.createTextNode(' — '+e.w+' edges '+e.l+' '+e.w_pts.toFixed(1)+'–'+e.l_pts.toFixed(1)+' · '+ctx(e))); });
+list('bigloss', DATA.records.big_loss, (li,e)=>{ li.appendChild($('b','bad',e.pts.toFixed(1))); li.appendChild(document.createTextNode(' — '+e.name+' lost to '+e.vs.toFixed(1)+' · '+ctx(e))); });
+list('cheapwin', DATA.records.cheap_win, (li,e)=>{ li.appendChild($('b','good',e.pts.toFixed(1))); li.appendChild(document.createTextNode(' — '+e.name+' beat '+e.vs.toFixed(1)+' · '+ctx(e))); });
+list('blunders', DATA.records.blunders, (li,e)=>{ li.appendChild($('b','bad',e.bench.toFixed(1))); li.appendChild(document.createTextNode(' on the bench — '+e.name+' (scored '+e.pts.toFixed(1)+') · '+ctx(e))); });
+</script>

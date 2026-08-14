@@ -1,0 +1,168 @@
+<meta charset="utf-8">
+<title>GGG League — Trade Archive</title>
+<link rel="stylesheet" href="ggg.css">
+__NAV__
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow">GGG League &middot; 2024&ndash;2025 &middot; the value model</div>
+    <h1>The Trade Archive</h1>
+    <p class="lede">Every trade ever, scored by one number per side. <b>Value = position-adjusted points over replacement</b> (rest of season, on your roster — QB points count less because replacement QBs score more) <b>+ a 30% keeper premium</b> for producers drafted cheap <b>+ pick value</b> from six years of draft history, discounted 15% per year until the pick conveys. A side is FLEECED at a 50+ value deficit.</p>
+    <details class="tbl-details"><summary class="mut">What's a pick worth under this model?</summary>
+      <div class="pickchips" id="pickVals" style="margin-top:10px"></div>
+    </details>
+  </header>
+
+  <section>
+    <div class="filterrow" id="typefilters"></div>
+    <div class="filterrow" id="injfilters"></div>
+    <div class="filterrow" id="sorters"></div>
+    <div class="filterrow" id="filters"></div>
+    <div class="filterrow" id="teamfilters"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">The leaderboard</div><h2 id="statsTitle">Who actually wins trades</h2>
+    <p class="sec-note">Net value across the deals matching the filters above. W = won by 50+, L = fleeced, E = fair fight.</p></div>
+    <div class="card scroll" id="tstats"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">The archive</div><h2>Every deal, graded</h2></div>
+    <div class="trades" id="trades"></div>
+  </section>
+</div>
+__FOOT__
+<script>
+const DATA = /*__DATA__*/{};
+const $ = (t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e;};
+
+let sfilter='all', tfilter='all', yfilter='all', ifilter='all', sorter='new';
+const sideTotal=t=>t.sides[0].total+t.sides[1].total;
+const sidePts=t=>t.sides.reduce((a,sd)=>a+sd.players.reduce((b,p)=>b+p.pts,0),0);
+const seasons=[...new Set(DATA.trades.map(t=>t.s))].sort().reverse();
+const teams=[...new Set(DATA.trades.flatMap(t=>t.sides.map(sd=>sd.name)))].sort();
+
+/* pick value chips */
+Object.entries(DATA.pickValues).forEach(([r,v])=>{
+  const c=$('span','pk','R'+r);c.appendChild($('span','frm',' '+v.toFixed(0)+' val'));
+  document.getElementById('pickVals').appendChild(c);
+});
+
+/* leaderboard — reacts to the filters */
+function renderStats(trades){
+  const host=document.getElementById('tstats');host.textContent='';
+  const st={};
+  trades.forEach(t=>{
+    t.sides.forEach((sd,i)=>{
+      const opp=t.sides[1-i];
+      const margin=sd.total-opp.total;
+      const s=st[sd.name]=st[sd.name]||{deals:0,w:0,l:0,e:0,net:0};
+      s.deals++;s.net+=margin;
+      if(margin>=50)s.w++;else if(margin<=-50)s.l++;else s.e++;
+    });
+  });
+  const rows=Object.entries(st).sort((a,b)=>b[1].net-a[1].net);
+  if(!rows.length){host.appendChild($('p','mut','No trades match these filters.'));return;}
+  const tbl=$('table','tbl');
+  const hr=$('tr');['Team','Deals','W-L-E','Net value',''].forEach(h=>hr.appendChild($('th',null,h)));
+  tbl.appendChild(hr);
+  rows.forEach(([name,s],i)=>{
+    const r=$('tr');
+    r.appendChild($('td',null,name));
+    r.appendChild($('td',null,String(s.deals)));
+    r.appendChild($('td',null,s.w+'‑'+s.l+'‑'+s.e));
+    r.appendChild($('td',s.net>0?'good':(s.net<0?'bad':''),(s.net>0?'+':'')+s.net.toFixed(0)));
+    const tag=$('td');
+    if(rows.length>1&&i===0)tag.appendChild($('span','chip mini','🦈 APEX TRADER'));
+    if(rows.length>1&&i===rows.length-1)tag.appendChild($('span','chip fire','🐟 THE FISH'));
+    r.appendChild(tag);
+    tbl.appendChild(r);
+  });
+  host.appendChild(tbl);
+}
+
+function pills(hostId,options,get,set){
+  const host=document.getElementById(hostId);host.textContent='';
+  options.forEach(([key,lab])=>{
+    const b=$('button','tpill'+(get()===key?' active':''),lab);b.type='button';
+    b.addEventListener('click',()=>{set(key);render();});
+    host.appendChild(b);
+  });
+}
+
+function render(){
+  const nPl=DATA.trades.filter(t=>t.type==='players').length;
+  const nPk=DATA.trades.filter(t=>t.type==='picks').length;
+  const nInj=DATA.trades.filter(t=>t.inj&&t.inj.length).length;
+  pills('typefilters',[['all','All deals ('+DATA.trades.length+')'],['players','Player-for-player ('+nPl+')'],['picks','Pick deals ('+nPk+')']],()=>yfilter,k=>yfilter=k);
+  pills('injfilters',[['all','Any injury status'],['inj','🚑 Injury-affected ('+nInj+')'],['clean','Clean deals']],()=>ifilter,k=>ifilter=k);
+  pills('sorters',[['new','Newest first'],['old','Oldest first'],['gap','Biggest value gap'],['value','Most total value'],['points','Most points moved']],()=>sorter,k=>sorter=k);
+  pills('filters',[['all','All seasons'],...seasons.map(s=>[s,s])],()=>sfilter,k=>sfilter=k);
+  pills('teamfilters',[['all','All teams'],...teams.map(n=>[n,n])],()=>tfilter,k=>tfilter=k);
+
+  const host=document.getElementById('trades');
+  host.textContent='';
+  let rows=DATA.trades.filter(t=>(yfilter==='all'||t.type===yfilter)
+    &&(sfilter==='all'||t.s===sfilter)
+    &&(tfilter==='all'||t.sides.some(sd=>sd.name===tfilter))
+    &&(ifilter==='all'||(ifilter==='inj'?(t.inj&&t.inj.length):!(t.inj&&t.inj.length))));
+  renderStats(rows);
+  if(sorter==='new')rows=[...rows].reverse();
+  else if(sorter==='gap')rows=[...rows].sort((a,b)=>b.diff-a.diff);
+  else if(sorter==='value')rows=[...rows].sort((a,b)=>sideTotal(b)-sideTotal(a));
+  else if(sorter==='points')rows=[...rows].sort((a,b)=>sidePts(b)-sidePts(a));
+  rows.forEach(t=>{
+    const card=$('article','trade');
+    const th=$('div','trade-head');
+    th.appendChild($('span','chip wk',t.s+' · WK '+t.wk));
+    th.appendChild($('span','chip even',t.type==='picks'?'PICK DEAL':'PLAYER DEAL'));
+    if(t.inj&&t.inj.length){
+      const ic=$('span','chip inj','🚑 LIKELY INJURY-AFFECTED');
+      ic.title=t.inj.join(', ');
+      th.appendChild(ic);
+    }
+    if(t.loser){
+      th.appendChild($('span','chip flag','FLEECED: '+t.loser+' (−'+t.diff.toFixed(0)+' value)'));
+    }else{
+      th.appendChild($('span','chip even','FAIR FIGHT'));
+    }
+    card.appendChild(th);
+    const sides=$('div','trade-sides');
+    t.sides.forEach(sd=>{
+      const box=$('div','side'+(t.loser===sd.name?' losing':''));
+      const sh=$('div','side-head');
+      sh.appendChild($('span','side-team',sd.name));
+      const val=$('span','side-cap');
+      val.appendChild($('b',null,sd.total.toFixed(0)+' value'));
+      sh.appendChild(val);
+      box.appendChild(sh);
+      const g=$('div','gets');
+      sd.players.forEach(p=>{
+        const pc=$('span','pchip');
+        pc.appendChild(document.createTextNode((p.inj?'🚑 ':'')+p.p));
+        pc.appendChild($('span','s',p.val.toFixed(0)+' val · '+p.pts.toFixed(0)+' pts'));
+        g.appendChild(pc);
+      });
+      sd.picks.forEach(pk=>{
+        const pc=$('span','pchip pick');
+        pc.appendChild(document.createTextNode(pk.lab));
+        pc.appendChild($('span','s',pk.val.toFixed(0)+' val'));
+        g.appendChild(pc);
+      });
+      if(!sd.players.length&&!sd.picks.length)g.appendChild($('span','pchip none','received nothing'));
+      box.appendChild(g);
+      const br=$('div','valbreak');
+      const bits=[];
+      if(sd.P)bits.push('production '+sd.P.toFixed(0));
+      if(sd.A)bits.push('keeper premium '+sd.A.toFixed(0));
+      if(sd.K)bits.push('picks '+sd.K.toFixed(0));
+      br.textContent=bits.join(' · ')||'—';
+      box.appendChild(br);
+      sides.appendChild(box);
+    });
+    card.appendChild(sides);
+    host.appendChild(card);
+  });
+}
+render();
+</script>

@@ -1,0 +1,437 @@
+<meta charset="utf-8">
+<title>GGG Commissioner's Lab</title>
+<link rel="stylesheet" href="ggg.css">
+__NAV__
+<div class="wrap" id="lockView" hidden>
+  <div class="lockwrap">
+    <div class="lockemoji">🧪🔒</div>
+    <h1 style="font-size:26px;margin-top:10px">Commissioner's Lab</h1>
+    <p class="lede" style="margin-top:8px">This is the rule workshop, not league policy. Enter the 4-digit code to open it.</p>
+    <div class="lockcode">
+      <input id="codeIn" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="····" aria-label="4-digit code">
+      <button class="lockbtn" id="codeGo" type="button">Open</button>
+    </div>
+    <div class="lockerr" id="codeErr"></div>
+  </div>
+</div>
+<div class="wrap wide" id="labMain" hidden>
+  <header class="hero">
+    <div class="eyebrow">GGG League &middot; Commissioner's Lab &middot; not league policy</div>
+    <h1>The rule simulator</h1>
+    <p class="lede">The 2026 rule set is locked except for one question: <b>how many keepers?</b> Locked: the flattened salary table, keepers count against team salary, keepers slot on the board at their escalated round, and the cap band — <b>$230 cap / $160 floor</b>, fitted to six seasons of replayed history (blocks 15 of the 16 tagged fire sales at the least damage to normal trading; the 16th sold a $10 keeper star for a pile of bodies, which no salary rule can see). Drag the sliders and watch every season re-judge itself; keeper count needs no toggle — 3-or-fewer keeps run budget-free, a 4th or 5th puts the class under the budget. Settings save on this device.</p>
+  </header>
+
+  <div class="dash" style="margin-top:22px">
+    <div class="dcard c5">
+      <div class="dcard-head"><h3 class="cardh">The sliders</h3></div>
+      <div class="ctlnote">Keeper count is the open vote, and the site shows both worlds at once: with <b>3 or fewer keeps no budget applies</b> (the 3-keeper rules); a <b>4th or 5th keep puts the whole keeper class under the budget</b> below (the 5-keeper rules). Players preview both from their own Keeper corner.</div>
+
+      <div class="ctl"><div class="ctlrow"><span class="ctlname">Team cap</span>
+        <input type="range" id="cap" min="175" max="260" step="5"><span class="ctlval" id="capV"></span></div>
+        <div class="ctlnote"><b>Lower → tighter market:</b> fire-sale hauls impossible to absorb, more cap jail. <b>Higher → looser:</b> easier star-stacking. Fitted value: $230.</div></div>
+
+      <div class="ctl"><div class="ctlrow"><span class="ctlname">Team floor</span>
+        <input type="range" id="floor" min="0" max="170" step="5"><span class="ctlval" id="floorV"></span></div>
+        <div class="ctlnote"><b>Higher → fire sales die:</b> sellers must take real salary back. <b>Lower/off → liquidations return.</b> Fitted value: $160. Waivers never trip it.</div></div>
+
+      <div class="ctl"><div class="ctlrow"><span class="ctlname">4+‑keeper budget</span>
+        <input type="range" id="budget" min="40" max="90" step="5"><span class="ctlval" id="budgetV"></span></div>
+        <div class="ctlnote">Only binds a team keeping 4 or 5 — their whole keeper class must fit under it. A kept R1 star costs $36, so at $50 a star leaves room for bargains only ($36+$10+$3); skipping the star buys a fistful of mids ($14+$12+$10+$8+$6).</div></div>
+
+      <div class="ctl"><div class="mlabel">Apply these rules to the Home page</div>
+        <div class="filterrow tight" id="applyMode"></div>
+        <div class="ctlnote">While on, the Home page keeper corner and cap board use these Lab settings instead of the shipped defaults, with a banner so nobody mistakes the sandbox for policy. Per device.</div></div>
+
+      <div class="ctl"><div class="mlabel">Sleeper sync</div>
+        <div class="filterrow tight"><button class="tpill sm" id="syncBtn" type="button">⟳ Refresh from Sleeper now</button></div>
+        <div class="ctlnote" id="syncNote">Pulls league status, draft schedule, and every team's official keepers straight from Sleeper — official keepers override local picks everywhere on the site. This also runs automatically on every page visit; for a full data rebuild (trades, rosters, picks) use <a href="https://github.com/StrubeTube/ggg-league/actions/workflows/refresh.yml" target="_blank" rel="noopener">Run workflow on GitHub</a> — it also runs itself daily.</div></div>
+
+      <div class="ctl"><div class="mlabel">Locked rules (no longer options)</div>
+        <div class="ctlnote">Flattened 2026 salary table · keeper salaries <b>count</b> against team salary · keepers <b>slot on the board</b> at their escalated round · $0 waivers · cap band checked on trades only, and only in the worsening direction.</div></div>
+    </div>
+
+    <div class="dcard c7">
+      <div class="dcard-head"><h3 class="cardh">League under these rules</h3></div>
+      <div class="filterrow tight" id="seasonPills"></div>
+      <div class="filterrow tight" id="viewPills"></div>
+      <div class="chiprow" id="labSummary"></div>
+      <div id="labBoard"></div>
+      <p class="cardnote" id="labNote"></p>
+    </div>
+  </div>
+</div>
+__FOOT__
+<script>
+const DATA = /*__DATA__*/{};
+const $ = (t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e;};
+
+/* keeper selections shared with planner/home */
+let kstate={team:0,picks:{}};
+try{const s=JSON.parse(localStorage.getItem('ggg-keeper-v1'));if(s&&s.picks)kstate=s;}catch(e){}
+/* official Sleeper keepers override device picks (same rule as the Home page) */
+let OFFICIAL={};
+DATA.teams.forEach((tm,ti)=>{if(tm.ok&&tm.ok.length)OFFICIAL[ti]=tm.ok;});
+try{const c=JSON.parse(localStorage.getItem('ggg-okeep-v1'));if(c&&c.map)OFFICIAL=c.map;}catch(e){}
+const isOfficial=ti=>Array.isArray(OFFICIAL[ti])&&OFFICIAL[ti].length>0;
+/* official keeps are locked in; local extras stack on top up to the 5-keep cap */
+const sel=ti=>{
+  const o=OFFICIAL[ti]||[];
+  const extra=(kstate.picks[ti]||[]).filter(i=>!o.includes(i));
+  return new Set([...o,...extra].slice(0,5));
+};
+async function syncSleeper(){
+  if(!DATA.leagueId2026)return null;
+  const rosters=await fetch('https://api.sleeper.app/v1/league/'+DATA.leagueId2026+'/rosters').then(r=>r.json());
+  const map={};
+  (rosters||[]).forEach(r=>{
+    const ti=DATA.teams.findIndex(t=>t.rid===r.roster_id);
+    if(ti<0)return;
+    const idx=[];
+    (r.keepers||[]).map(String).forEach(pid=>{
+      const i=DATA.teams[ti].players.findIndex(p=>p.pid===pid);
+      if(i>=0)idx.push(i);
+    });
+    if(idx.length)map[ti]=idx;
+  });
+  OFFICIAL=map;
+  try{localStorage.setItem('ggg-okeep-v1',JSON.stringify({ts:Date.now(),map}));}catch(e){}
+  return map;
+}
+
+/* lab settings — keeper rules are count-adaptive: <=3 keeps no budget,
+   4-5 keeps put the whole class under the budget slider */
+const DEFAULTS={cap:DATA.defaults.cap,floor:DATA.defaults.floor,
+  budget:DATA.defaults.budget5,apply:'on',season:'2026',view:'all'};
+let S={...DEFAULTS};
+try{const s=JSON.parse(localStorage.getItem('ggg-lab-v7'));if(s)S={...DEFAULTS,...s};}catch(e){}
+const saveS=()=>{try{localStorage.setItem('ggg-lab-v7',JSON.stringify(S));}catch(e){}};
+const TABLE=DATA.adopted;
+const capOn=()=>S.cap>=180;
+const capVal=()=>capOn()?S.cap:Infinity;
+
+function escal(r,steps){
+  const n=r-steps;
+  return n>=1?TABLE[n]:TABLE[1]+6*(1-n);
+}
+
+function evalLab(ti){
+  const tm=DATA.teams[ti],chosen=sel(ti);
+  let keepSpend=0;
+  chosen.forEach(pi=>{const p=tm.players[pi];if(p.el)keepSpend+=escal(p.r,p.kp?1:0);});
+  const k=chosen.size;
+  let capDraft=0;
+  tm.picks.slice(0,16).forEach(p=>capDraft+=TABLE[p.r]);   // keepers occupy their round's pick
+  return {k,keepSpend,capDraft,opening:capDraft,
+          overBudget:k>3&&keepSpend>S.budget,overCount:k>5};
+}
+
+/* ---- controls ---- */
+function pillGroup(hostId,options,get,set){
+  const host=document.getElementById(hostId);host.textContent='';
+  options.forEach(([key,lab])=>{
+    const b=$('button','tpill sm'+(get()===key?' active':''),lab);b.type='button';
+    b.addEventListener('click',()=>{set(key);saveS();render();});
+    host.appendChild(b);
+  });
+}
+const sliders=[['cap',v=>v>=180?('$'+v):'off'],['floor',v=>v?('$'+v):'off'],['budget',v=>'$'+v]];
+sliders.forEach(([id])=>{
+  document.getElementById(id).addEventListener('input',e=>{
+    S[id]=parseInt(e.target.value);
+    saveS();render();
+  });
+});
+function render(){
+  pillGroup('applyMode',[['on','On — Home mirrors the Lab'],['off','Off — Home uses the shipped defaults']],()=>S.apply,k=>S.apply=k);
+
+  sliders.forEach(([id,fmt])=>{
+    const el=document.getElementById(id);
+    el.value=S[id];
+    document.getElementById(id+'V').textContent=fmt(S[id]);
+  });
+
+  /* gold boxes: what's net new vs the old base Sleeper rules */
+  [['cap',capOn()],['floor',S.floor>0],['budget',true]]
+    .forEach(([id,mod])=>{
+      const c=document.getElementById(id)?.closest('.ctl');
+      if(c)c.classList.toggle('modded',mod);
+    });
+
+  pillGroup('seasonPills',[['2026','2026 projection'],...DATA.replay.map(r=>[r.s,r.s+' replay'])],
+    ()=>S.season,k=>S.season=k);
+  pillGroup('viewPills',[['all','Total'],['k','Keepers'],['d','Draft picks']],()=>S.view,k=>S.view=k);
+
+  const sum=document.getElementById('labSummary');sum.textContent='';
+  const board=document.getElementById('labBoard');board.textContent='';
+  const note=document.getElementById('labNote');
+
+  function brow(name,kchip,segs,scale,lines,valTxt,bad,sub){
+    const r=$('div','cbrow');
+    const nm=$('div','cbname');
+    nm.appendChild($('span','cbteam',name));
+    if(kchip!=null)nm.appendChild($('span','chip mini',kchip));
+    r.appendChild(nm);
+    const tr=$('div','cbtrack');
+    let x=0;
+    segs.forEach(([cls,v])=>{if(v<=0)return;const sg=$('div','cbseg '+cls);
+      sg.style.left=(x/scale*100)+'%';sg.style.width=(Math.min(v,scale-x)/scale*100)+'%';
+      tr.appendChild(sg);x+=v;});
+    lines.forEach(([cls,v])=>{if(v==null||!isFinite(v))return;const l=$('div',cls);
+      l.style.left=(v/scale*100)+'%';tr.appendChild(l);});
+    r.appendChild(tr);
+    const val=$('div','cbval');
+    val.appendChild($('b',bad?'bad':'',valTxt));
+    if(sub)val.appendChild($('span','mut small',sub));
+    r.appendChild(val);
+    return r;
+  }
+
+  if(S.season==='2026'){
+    const rows=DATA.teams.map((tm,ti)=>({name:tm.name,ev:evalLab(ti)}));
+    if(S.view==='k'){
+      note.textContent='Keeper salaries per team from the keeps selected on this device. Gold line = the 4+‑keeper budget — it only binds teams keeping 4 or 5.';
+      rows.sort((a,b)=>b.ev.keepSpend-a.ev.keepSpend);
+      const overB=rows.filter(r=>r.ev.overBudget).length;
+      [[overB?'fire':'even',overB+' over the 4+ budget'],
+       ['even',rows.reduce((a,r)=>a+r.ev.k,0)+' keepers selected league-wide']]
+        .forEach(([c2,t2])=>sum.appendChild($('span','chip '+c2,t2)));
+      const scale=Math.max(60,S.budget+20,...rows.map(r=>r.ev.keepSpend+5));
+      rows.forEach(r=>board.appendChild(brow(r.name,r.ev.k+' K',[['k',r.ev.keepSpend]],scale,
+        [['cbfloor',S.budget]],'$'+r.ev.keepSpend,r.ev.overBudget,
+        r.ev.k>3?(Math.round(r.ev.keepSpend/S.budget*100)+'% of budget'):'≤3 keeps — no budget')));
+    }else if(S.view==='d'){
+      note.textContent='Draft-pick salary each team carries into 2026 from the picks they hold.';
+      rows.sort((a,b)=>b.ev.capDraft-a.ev.capDraft);
+      sum.appendChild($('span','chip even','avg draft spend $'+Math.round(rows.reduce((a,r)=>a+r.ev.capDraft,0)/rows.length)));
+      const scale=Math.max(280,capOn()?S.cap+40:0);
+      rows.forEach(r=>board.appendChild(brow(r.name,null,[['d',r.ev.capDraft]],scale,
+        [['cbcap',capOn()?S.cap:null]],'$'+r.ev.capDraft,capOn()&&r.ev.capDraft>S.cap,'')));
+    }else{
+      note.textContent='Opening salary from the picks each team holds (keepers occupy their round’s pick). Red line = cap, gold = floor. Keeper picks come from this device — set them on the Home page.';
+      rows.sort((a,b)=>b.ev.opening-a.ev.opening);
+      const overCap=rows.filter(r=>r.ev.opening>capVal()).length;
+      const overB=rows.filter(r=>r.ev.overBudget).length;
+      [[overCap?'fire':'even',overCap+' team'+(overCap===1?'':'s')+' in cap jail'],
+       [overB?'fire':'even',overB+' over the 4+ budget'],
+       ['even','avg opening $'+Math.round(rows.reduce((a,r)=>a+r.ev.opening,0)/rows.length)]]
+        .forEach(([c2,t2])=>sum.appendChild($('span','chip '+c2,t2)));
+      const scale=Math.max(280,capOn()?S.cap+40:0);
+      rows.forEach(r=>board.appendChild(brow(r.name,r.ev.k+' K',
+        [['d',r.ev.opening]],scale,
+        [['cbcap',capOn()?S.cap:null],['cbfloor',S.floor>0?S.floor:null]],
+        '$'+r.ev.opening,r.ev.opening>capVal(),
+        'keepers $'+r.ev.keepSpend+(r.ev.k>3?('/$'+S.budget):''))));
+    }
+  }else{
+    const sn=DATA.replay.find(r=>r.s===S.season);
+    if(S.view==='k'){
+      note.textContent='That season’s actual keeper classes priced by the locked table. Gold line = the 4+‑keeper budget — it would only have bound a team keeping 4 or 5.';
+      const teams=sn.teams.map(t=>{
+        let ksum=0,n=0;
+        sn.draft.forEach(d2=>{if(d2.rid===t.rid&&d2.k){ksum+=TABLE[d2.r];n++;}});
+        return {name:t.name,ksum,n};
+      }).sort((a,b)=>b.ksum-a.ksum);
+      const overB=teams.filter(t=>t.n>3&&t.ksum>S.budget).length;
+      [[overB?'fire':'even',overB+' would have been over the 4+ budget'],
+       ['even',teams.reduce((a,t)=>a+t.n,0)+' keepers that year']]
+        .forEach(([c2,t2])=>sum.appendChild($('span','chip '+c2,t2)));
+      const scale=Math.max(60,S.budget+20,...teams.map(t=>t.ksum+5));
+      teams.forEach(t=>board.appendChild(brow(t.name,t.n+' K',[['k',t.ksum]],scale,
+        [['cbfloor',S.budget]],'$'+t.ksum,t.n>3&&t.ksum>S.budget,
+        t.n>3?(Math.round(t.ksum/S.budget*100)+'% of budget'):'≤3 keeps — no budget')));
+    }else if(S.view==='d'){
+      note.textContent='Non-keeper draft salary per team that season, priced by the locked table.';
+      const teams=sn.teams.map(t=>{
+        let dsum=0;
+        sn.draft.forEach(d2=>{if(d2.rid===t.rid&&!d2.k)dsum+=TABLE[d2.r];});
+        return {name:t.name,dsum};
+      }).sort((a,b)=>b.dsum-a.dsum);
+      sum.appendChild($('span','chip even','avg draft spend $'+Math.round(teams.reduce((a,t)=>a+t.dsum,0)/teams.length)));
+      const scale=Math.max(280,capOn()?S.cap+40:0);
+      teams.forEach(t=>board.appendChild(brow(t.name,null,[['d',t.dsum]],scale,
+        [['cbcap',capOn()?S.cap:null]],'$'+t.dsum,false,'')));
+    }else{
+      note.textContent='Historical replay: that season’s real draft priced by the locked table, every real transaction re-run under your cap band. Bar = draft-day salary; gold band = the team’s trading range that season (low → peak); tick = where their last trade landed them, red when outside the lines.';
+      const sim=simSeason(sn,capVal(),S.floor);
+      renderRetro(sim,capVal(),sum,board);
+    }
+  }
+}
+
+function simSeason(sn,cap,floor){
+  floor=floor||0;
+  const cur={};sn.teams.forEach(t=>cur[t.rid]={});
+  const nameOf={};sn.teams.forEach(t=>nameOf[t.rid]=t.name);
+  sn.draft.forEach(d=>{if(cur[d.rid])cur[d.rid][d.pid]={s:TABLE[d.r],k:d.k,home:d.rid};});
+  const tot=rid=>Object.values(cur[rid]).reduce((a,p)=>a+p.s,0);
+  const traj={};sn.teams.forEach(t=>{const v=tot(t.rid);traj[t.rid]={open:v,peak:v,low:v,land:v,n:0};});
+  const trades=[];
+  sn.events.forEach(ev=>{
+    if(ev.t===0){
+      ev.mv.forEach(([pid,from,to])=>{
+        if(from!=null&&cur[from])delete cur[from][pid];
+        if(to!=null&&cur[to])cur[to][pid]={s:0,k:0,home:-1};
+      });
+      return;
+    }
+    const rids=[...new Set([...ev.mv.flatMap(([,f,t2])=>[f,t2]).filter(x=>x!=null),
+      ...Object.keys(ev.pk||{}).map(Number)])];
+    const before={},gets={};
+    rids.forEach(rid=>{before[rid]=tot(rid);gets[rid]=[];});
+    ev.mv.forEach(([pid,from,to])=>{
+      let obj=(from!=null&&cur[from]&&cur[from][pid])||{s:0,k:0,home:-1};
+      if(from!=null&&cur[from])delete cur[from][pid];
+      if(to!=null&&cur[to]){
+        cur[to][pid]=obj;
+        if(gets[to])gets[to].push({n:sn.names[pid]||('#'+pid),s:obj.s});
+      }
+    });
+    let blocked=false;
+    const srows=rids.map(rid=>{
+      const after=tot(rid);
+      const tj=traj[rid];
+      if(tj){tj.n++;tj.land=after;if(after>tj.peak)tj.peak=after;if(after<tj.low)tj.low=after;}
+      const over=(after>cap&&after>before[rid])||(floor&&after<floor&&after<before[rid]);
+      if(over)blocked=true;
+      return {name:nameOf[rid],before:before[rid],after,over,
+              gets:gets[rid]||[],picks:(ev.pk&&ev.pk[String(rid)])||[]};
+    });
+    trades.push({w:ev.w,f:ev.f,blocked,sides:srows});
+  });
+  const teams=sn.teams.map(t=>{const tj=traj[t.rid];
+    return {name:t.name,open:tj.open,peak:Math.round(tj.peak),low:Math.round(tj.low),
+            land:Math.round(tj.land),n:tj.n};});
+  return {teams,trades};
+}
+
+function renderRetro(sim,cap,sum,board){
+  const overOpen=sim.teams.filter(o=>o.open>cap);
+  const fires=sim.trades.filter(t=>t.f);
+  const blockedN=sim.trades.filter(t=>t.blocked).length;
+  const peaked=sim.teams.filter(o=>o.n&&o.peak>cap).length;
+  const sank=S.floor>0?sim.teams.filter(o=>o.n&&o.low<S.floor).length:0;
+  [[overOpen.length?'fire':'even',overOpen.length+' team'+(overOpen.length===1?'':'s')+' open over the cap'],
+   [peaked?'fire':'even',peaked+' traded over the cap'],
+   [sank?'fire':'even',S.floor>0?(sank+' traded below the floor'):'no floor set'],
+   [blockedN?'fire':'even',blockedN+' of '+sim.trades.length+' trades blocked'],
+   [fires.length?'fire':'even',fires.filter(t=>t.blocked).length+' of '+fires.length+' fire sales blocked']]
+    .forEach(([cls,txt])=>sum.appendChild($('span','chip '+cls,txt)));
+
+  const scale=Math.max(280,isFinite(cap)?cap+50:0,...sim.teams.map(o=>Math.max(o.open,o.peak)+10));
+  [...sim.teams].sort((a,b)=>b.open-a.open).forEach(o=>{
+    const row=$('div','cbrow');
+    const nm=$('div','cbname');nm.appendChild($('span','cbteam',o.name));row.appendChild(nm);
+    const track=$('div','cbtrack');
+    const seg=$('div','cbseg d');seg.style.left='0';seg.style.width=(Math.min(o.open,scale)/scale*100)+'%';
+    track.appendChild(seg);
+    if(o.n){
+      const lo=Math.min(o.low,o.open),hi=Math.max(o.peak,o.open);
+      const band=$('div','cbrange');band.style.left=(lo/scale*100)+'%';
+      band.style.width=(Math.max(hi-lo,2)/scale*100)+'%';track.appendChild(band);
+      const tick=$('div','cbtick'+((o.land>cap)||(S.floor>0&&o.land<S.floor)?' bad':''));
+      tick.style.left=(o.land/scale*100)+'%';tick.title='landed $'+o.land;track.appendChild(tick);
+    }
+    if(isFinite(cap)){const cl=$('div','cbcap');cl.style.left=(cap/scale*100)+'%';track.appendChild(cl);}
+    if(S.floor>0&&S.floor<scale){const fl=$('div','cbfloor');fl.style.left=(S.floor/scale*100)+'%';track.appendChild(fl);}
+    row.appendChild(track);
+    const val=$('div','cbval');
+    val.appendChild($('b',o.open>cap?'bad':'','open $'+Math.round(o.open)));
+    const sub=$('span','mut small');
+    if(o.n){
+      sub.appendChild(document.createTextNode('landed '));
+      sub.appendChild($('b',(o.land>cap)||(S.floor>0&&o.land<S.floor)?'bad':'','$'+o.land));
+      sub.appendChild(document.createTextNode(' · peak '));
+      sub.appendChild($('b',o.peak>cap?'bad':'','$'+o.peak));
+      if(S.floor>0&&o.low<S.floor&&o.low!==o.land){
+        sub.appendChild(document.createTextNode(' · low '));
+        sub.appendChild($('b','bad','$'+o.low));
+      }
+    }else{
+      sub.appendChild(document.createTextNode('no trades'));
+    }
+    val.appendChild(sub);
+    row.appendChild(val);
+    board.appendChild(row);
+  });
+
+  const h=$('div','mlabel');h.style.marginTop='14px';h.textContent='Every trade that season, under these rules';
+  board.appendChild(h);
+  if(!sim.trades.length)board.appendChild($('p','mut small','No in-season trades that year.'));
+  sim.trades.forEach(t=>{
+    const card=$('div','rtrade'+(t.blocked?' rblocked':''));
+    const th=$('div','trade-head');
+    th.appendChild($('span','chip wk','WK '+t.w));
+    if(t.f)th.appendChild($('span','chip fire','FIRE SALE'));
+    th.appendChild(t.blocked?$('span','chip flag','BLOCKED — outside the cap band'):$('span','chip ok','allowed'));
+    card.appendChild(th);
+    t.sides.forEach(sd=>{
+      const line=$('div','rline');
+      const left=$('span');
+      left.appendChild($('b',null,sd.name+': '));
+      const bits=sd.gets.map(g=>g.n+' ($'+Math.round(g.s)+')');
+      sd.picks.forEach(l=>bits.push(l+' pick'));
+      left.appendChild(document.createTextNode(bits.length?('gets '+bits.join(', ')):'sends only'));
+      line.appendChild(left);
+      const right=$('span','mut');
+      right.appendChild(document.createTextNode('$'+Math.round(sd.before)+' → '));
+      right.appendChild($('b',sd.over?'bad':'','$'+Math.round(sd.after)));
+      line.appendChild(right);
+      card.appendChild(line);
+    });
+    board.appendChild(card);
+  });
+}
+
+/* ---- Sleeper sync button ---- */
+async function runSync(fromClick){
+  const note=document.getElementById('syncNote'),btn=document.getElementById('syncBtn');
+  if(fromClick){btn.disabled=true;btn.textContent='⟳ syncing…';}
+  try{
+    const map=await syncSleeper();
+    let status='';
+    if(fromClick&&DATA.leagueId2026){
+      const base='https://api.sleeper.app/v1/league/'+DATA.leagueId2026;
+      const [lg,drafts]=await Promise.all([
+        fetch(base).then(r=>r.json()),fetch(base+'/drafts').then(r=>r.json())]);
+      const d=(drafts||[])[0];
+      status=' · league '+String(lg.status||'').replace('_',' ')
+        +(d&&d.start_time?(' · draft '+new Date(d.start_time).toLocaleDateString('en-US',{month:'short',day:'numeric'})):' · draft not scheduled');
+    }
+    const n=map?Object.keys(map).length:0;
+    if(fromClick)note.textContent='Synced '+new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})
+      +' — '+n+' of 10 teams have official keepers'+status
+      +'. Official keepers override local picks everywhere; a full data rebuild runs daily on GitHub.';
+    render();
+  }catch(e){
+    if(fromClick)note.textContent='Sync failed — Sleeper unreachable. Try again in a minute.';
+  }
+  if(fromClick){btn.disabled=false;btn.textContent='⟳ Refresh from Sleeper now';}
+}
+document.getElementById('syncBtn').addEventListener('click',()=>runSync(true));
+runSync(false);
+
+/* ---- door (runs last so an already-unlocked visit can safely render()) ---- */
+const KEYK='ggg-lab-key';
+const hash=s=>{let a=7;for(const ch of s)a=(a*31+ch.charCodeAt(0))>>>0;return a%100000;};
+function unlock(){
+  document.getElementById('lockView').hidden=true;
+  document.getElementById('labMain').hidden=false;
+  render();
+}
+(function(){
+  let ok=false;
+  try{ok=localStorage.getItem(KEYK)==='ok';}catch(e){}
+  if(ok){unlock();return;}
+  document.getElementById('lockView').hidden=false;
+  const inp=document.getElementById('codeIn'),err=document.getElementById('codeErr');
+  const tryCode=()=>{
+    if(inp.value.length===4&&hash(inp.value)===84575){
+      try{localStorage.setItem(KEYK,'ok');}catch(e){}
+      unlock();
+    }else{err.textContent='Nope. Ask the commissioner.';inp.value='';inp.focus();}
+  };
+  document.getElementById('codeGo').addEventListener('click',tryCode);
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')tryCode();});
+  inp.focus();
+})();
+</script>

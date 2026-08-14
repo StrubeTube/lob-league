@@ -1,0 +1,168 @@
+<meta charset="utf-8">
+<title>LOB League — Trade Archive</title>
+<script>try{if(!localStorage.getItem('lob-pitch-v2'))location.replace('pitch.html');}catch(e){}</script><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="stylesheet" href="ggg.css?v=7e7a80f9">
+<nav class="ggg"><div class="in"><span class="logo">LOB</span><div class="navgrp newg"><span class="navcap">New · your team</span><div class="navlinks"><a href="index.html" class="">Home</a><a href="analyzer.html" class="">Trade Tester</a></div></div><div class="navgrp histg"><span class="navcap">League history</span><div class="navlinks"><a href="history.html" class="">History</a><a href="records.html" class="">Records</a><a href="drafts.html" class="">Drafts</a><a href="trades.html" class="on">Trades</a></div></div><a href="pitch.html" class="pitchtab">🗳️ The Proposal</a><a href="lab.html" class="labtab">⚙️ Commish tools</a></div></nav>
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow">LOB League &middot; 2024&ndash;2025 &middot; the value model</div>
+    <h1>The Trade Archive</h1>
+    <p class="lede">Every trade ever, scored by one number per side. <b>Value = position-adjusted points over replacement</b> (rest of season, on your roster — QB points count less because replacement QBs score more) <b>+ a 30% keeper premium</b> for producers drafted cheap <b>+ pick value</b> from six years of draft history, discounted 15% per year until the pick conveys. A side is FLEECED at a 50+ value deficit.</p>
+    <details class="tbl-details"><summary class="mut">What's a pick worth under this model?</summary>
+      <div class="pickchips" id="pickVals" style="margin-top:10px"></div>
+    </details>
+  </header>
+
+  <section>
+    <div class="filterrow" id="typefilters"></div>
+    <div class="filterrow" id="injfilters"></div>
+    <div class="filterrow" id="sorters"></div>
+    <div class="filterrow" id="filters"></div>
+    <div class="filterrow" id="teamfilters"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">The leaderboard</div><h2 id="statsTitle">Who actually wins trades</h2>
+    <p class="sec-note">Net value across the deals matching the filters above. W = won by 50+, L = fleeced, E = fair fight.</p></div>
+    <div class="card scroll" id="tstats"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">The archive</div><h2>Every deal, graded</h2></div>
+    <div class="trades" id="trades"></div>
+  </section>
+</div>
+<footer class="ggg"><div class="in">LOB League — League of Burger · data from the Sleeper API · stats computed 2026-08-14 · regular-season records unless noted · grudges update automatically</div></footer>
+<script>
+const DATA = {"trades": [{"s": "2024", "wk": 3, "type": "players", "sides": [{"name": "Strubes", "players": [{"p": "Rashee Rice", "pts": 0, "val": 0.0, "inj": false}, {"p": "Ladd McConkey", "pts": 178.0, "val": 56.9, "inj": false}], "picks": [], "P": 41.8, "A": 15.1, "K": 0.0, "total": 56.9}, {"name": "TommyHolland", "players": [{"p": "Nico Collins", "pts": 127.8, "val": 0.0, "inj": false}], "picks": [], "P": 0.0, "A": 0.0, "K": 0.0, "total": 0.0}], "diff": 56.9, "loser": "TommyHolland", "inj": []}, {"s": "2024", "wk": 7, "type": "picks", "sides": [{"name": "EvanDeFilippis", "players": [], "picks": [{"lab": "2025 R5", "val": 27.1}], "P": 0.0, "A": 0.0, "K": 27.1, "total": 27.1}, {"name": "wetjeans", "players": [{"p": "Stefon Diggs", "pts": 10.2, "val": 0.0, "inj": true}, {"p": "Drake London", "pts": 129.7, "val": 51.3, "inj": false}], "picks": [], "P": 32.4, "A": 18.9, "K": 0.0, "total": 51.3}], "diff": 24.2, "loser": null, "inj": ["Stefon Diggs"]}, {"s": "2024", "wk": 7, "type": "picks", "sides": [{"name": "Strubes", "players": [{"p": "Trey McBride", "pts": 139.6, "val": 102.7, "inj": false}], "picks": [{"lab": "2025 R10", "val": 27.1}, {"lab": "2025 R7", "val": 27.1}], "P": 91.0, "A": 11.7, "K": 54.2, "total": 156.9}, {"name": "wetjeans", "players": [{"p": "Josh Jacobs", "pts": 191.4, "val": 135.4, "inj": false}], "picks": [{"lab": "2025 R11", "val": 27.1}, {"lab": "2025 R16", "val": 9.3}], "P": 103.3, "A": 32.2, "K": 36.4, "total": 171.8}], "diff": 14.9, "loser": null, "inj": []}, {"s": "2024", "wk": 7, "type": "picks", "sides": [{"name": "EvanDeFilippis", "players": [], "picks": [{"lab": "2025 R2", "val": 64.1}], "P": 0.0, "A": 0.0, "K": 64.1, "total": 64.1}, {"name": "drew523", "players": [{"p": "Travis Etienne", "pts": 60.6, "val": 0.0, "inj": false}, {"p": "Breece Hall", "pts": 108.9, "val": 20.8, "inj": false}], "picks": [], "P": 20.8, "A": 0.0, "K": 0.0, "total": 20.8}], "diff": 43.3, "loser": null, "inj": []}, {"s": "2024", "wk": 7, "type": "picks", "sides": [{"name": "TommyHolland", "players": [{"p": "Xavier Worthy", "pts": 101.7, "val": 14.5, "inj": false}], "picks": [{"lab": "2025 R3", "val": 53.7}], "P": 4.4, "A": 10.1, "K": 53.7, "total": 68.2}, {"name": "lynnkm23", "players": [{"p": "Amon-Ra St. Brown", "pts": 170.8, "val": 73.5, "inj": false}], "picks": [{"lab": "2025 R16", "val": 9.3}], "P": 73.5, "A": 0.0, "K": 9.3, "total": 82.8}], "diff": 14.6, "loser": null, "inj": []}, {"s": "2024", "wk": 7, "type": "picks", "sides": [{"name": "Strubes", "players": [], "picks": [{"lab": "2025 R1", "val": 89.8}], "P": 0.0, "A": 0.0, "K": 89.8, "total": 89.8}, {"name": "Cnew31", "players": [{"p": "CeeDee Lamb", "pts": 136.5, "val": 39.2, "inj": false}], "picks": [], "P": 39.2, "A": 0.0, "K": 0.0, "total": 39.2}], "diff": 50.6, "loser": "Cnew31", "inj": []}, {"s": "2024", "wk": 7, "type": "players", "sides": [{"name": "getgiggeywitit", "players": [{"p": "Kareem Hunt", "pts": 94.9, "val": 6.8, "inj": false}, {"p": "George Pickens", "pts": 69.0, "val": 0.0, "inj": false}, {"p": "Tank Bigsby", "pts": 56.7, "val": 0.0, "inj": false}], "picks": [], "P": 6.8, "A": 0.0, "K": 0.0, "total": 6.8}, {"name": "EvanDeFilippis", "players": [{"p": "Tony Pollard", "pts": 104.6, "val": 33.3, "inj": false}], "picks": [], "P": 16.5, "A": 16.8, "K": 0.0, "total": 33.3}], "diff": 26.5, "loser": null, "inj": []}, {"s": "2024", "wk": 8, "type": "players", "sides": [{"name": "Cnew31", "players": [{"p": "Jakobi Meyers", "pts": 112.2, "val": 50.2, "inj": false}], "picks": [], "P": 24.6, "A": 25.6, "K": 0.0, "total": 50.2}, {"name": "EvanDeFilippis", "players": [{"p": "Chris Godwin", "pts": 0, "val": 0.0, "inj": true}], "picks": [], "P": 0.0, "A": 0.0, "K": 0.0, "total": 0.0}], "diff": 50.2, "loser": "EvanDeFilippis", "inj": ["Chris Godwin"]}, {"s": "2024", "wk": 12, "type": "players", "sides": [{"name": "Strubes", "players": [{"p": "Rome Odunze", "pts": 39.1, "val": 0.0, "inj": false}], "picks": [], "P": 0.0, "A": 0.0, "K": 0.0, "total": 0.0}, {"name": "jhounshell", "players": [{"p": "Tyrone Tracy", "pts": 65.1, "val": 21.0, "inj": false}], "picks": [], "P": 21.0, "A": 0.0, "K": 0.0, "total": 21.0}], "diff": 21.0, "loser": null, "inj": []}, {"s": "2025", "wk": 1, "type": "players", "sides": [{"name": "EvanDeFilippis", "players": [{"p": "Michael Pittman", "pts": 145.4, "val": 19.9, "inj": false}], "picks": [], "P": 11.6, "A": 8.4, "K": 0.0, "total": 19.9}, {"name": "lynnkm23", "players": [{"p": "Kyle Pitts", "pts": 157.4, "val": 103.2, "inj": false}], "picks": [], "P": 75.6, "A": 27.6, "K": 0.0, "total": 103.2}], "diff": 83.3, "loser": "EvanDeFilippis", "inj": []}, {"s": "2025", "wk": 1, "type": "picks", "sides": [{"name": "EvanDeFilippis", "players": [], "picks": [{"lab": "2025 R12", "val": 22.9}], "P": 0.0, "A": 0.0, "K": 22.9, "total": 22.9}, {"name": "jhounshell", "players": [{"p": "Chris Godwin", "pts": 0, "val": 0.0, "inj": true}, {"p": "Tony Pollard", "pts": 0, "val": 0.0, "inj": true}], "picks": [{"lab": "2025 R13", "val": 13.1}], "P": 0.0, "A": 0.0, "K": 13.1, "total": 13.1}], "diff": 9.8, "loser": null, "inj": ["Chris Godwin", "Tony Pollard"]}, {"s": "2025", "wk": 1, "type": "picks", "sides": [{"name": "EvanDeFilippis", "players": [], "picks": [{"lab": "2025 R14", "val": 11.2}], "P": 0.0, "A": 0.0, "K": 11.2, "total": 11.2}, {"name": "drew523", "players": [{"p": "Jerry Jeudy", "pts": 66.2, "val": 0.0, "inj": false}], "picks": [], "P": 0.0, "A": 0.0, "K": 0.0, "total": 0.0}], "diff": 11.2, "loser": null, "inj": []}, {"s": "2025", "wk": 1, "type": "picks", "sides": [{"name": "EvanDeFilippis", "players": [{"p": "Drake London", "pts": 158.4, "val": 24.6, "inj": false}], "picks": [{"lab": "2025 R6", "val": 31.9}], "P": 24.6, "A": 0.0, "K": 31.9, "total": 56.4}, {"name": "wetjeans", "players": [], "picks": [{"lab": "2025 R11", "val": 31.9}, {"lab": "2025 R5", "val": 31.9}], "P": 0.0, "A": 0.0, "K": 63.8, "total": 63.8}], "diff": 7.4, "loser": null, "inj": []}, {"s": "2025", "wk": 1, "type": "picks", "sides": [{"name": "Strubes", "players": [{"p": "Ja'Marr Chase", "pts": 247.5, "val": 113.7, "inj": false}], "picks": [{"lab": "2025 R9", "val": 31.9}], "P": 113.7, "A": 0.0, "K": 31.9, "total": 145.5}, {"name": "Cnew31", "players": [{"p": "Rashee Rice", "pts": 123.6, "val": 0.0, "inj": false}], "picks": [{"lab": "2025 R10", "val": 31.9}, {"lab": "2025 R12", "val": 22.9}], "P": 0.0, "A": 0.0, "K": 54.8, "total": 54.8}], "diff": 90.7, "loser": "Cnew31", "inj": []}, {"s": "2025", "wk": 1, "type": "picks", "sides": [{"name": "EvanDeFilippis", "players": [{"p": "Derrick Henry", "pts": 42.1, "val": 10.9, "inj": false}], "picks": [], "P": 0.0, "A": 10.9, "K": 0.0, "total": 10.9}, {"name": "lynnkm23", "players": [], "picks": [{"lab": "2025 R10", "val": 31.9}, {"lab": "2025 R14", "val": 11.2}], "P": 0.0, "A": 0.0, "K": 43.1, "total": 43.1}], "diff": 32.2, "loser": null, "inj": []}, {"s": "2025", "wk": 3, "type": "picks", "sides": [{"name": "TommyHolland", "players": [], "picks": [{"lab": "2026 R15", "val": 9.5}], "P": 0.0, "A": 0.0, "K": 9.5, "total": 9.5}, {"name": "EvanDeFilippis", "players": [{"p": "Kyler Murray", "pts": 31.4, "val": 0.0, "inj": false}], "picks": [{"lab": "2026 R16", "val": 9.3}], "P": 0.0, "A": 0.0, "K": 9.3, "total": 9.3}], "diff": 0.2, "loser": null, "inj": []}, {"s": "2025", "wk": 4, "type": "players", "sides": [{"name": "getgiggeywitit", "players": [{"p": "Kyle Monangai", "pts": 127.7, "val": 18.5, "inj": false}, {"p": "Tony Pollard", "pts": 130.7, "val": 21.5, "inj": false}], "picks": [], "P": 40.0, "A": 0.0, "K": 0.0, "total": 40.0}, {"name": "EvanDeFilippis", "players": [{"p": "Javonte Williams", "pts": 156.7, "val": 80.8, "inj": false}], "picks": [], "P": 47.5, "A": 33.3, "K": 0.0, "total": 80.8}], "diff": 40.8, "loser": null, "inj": []}, {"s": "2025", "wk": 8, "type": "players", "sides": [{"name": "EvanDeFilippis", "players": [{"p": "Jerry Jeudy", "pts": 0, "val": 0.0, "inj": true}, {"p": "Amon-Ra St. Brown", "pts": 143.8, "val": 68.5, "inj": false}], "picks": [], "P": 68.5, "A": 0.0, "K": 0.0, "total": 68.5}, {"name": "drew523", "players": [{"p": "Isaiah Davis", "pts": 2.7, "val": 0.0, "inj": false}, {"p": "Keenan Allen", "pts": 46.3, "val": 21.2, "inj": false}, {"p": "Derrick Henry", "pts": 182.1, "val": 117.4, "inj": false}, {"p": "Chris Olave", "pts": 126.0, "val": 78.9, "inj": false}], "picks": [], "P": 157.2, "A": 60.2, "K": 0.0, "total": 217.5}], "diff": 149.0, "loser": "EvanDeFilippis", "inj": ["Jerry Jeudy"]}], "pickValues": {"1": 105.7, "2": 75.4, "3": 63.2, "4": 63.2, "5": 31.9, "6": 31.9, "7": 31.9, "8": 31.9, "9": 31.9, "10": 31.9, "11": 31.9, "12": 22.9, "13": 13.1, "14": 11.2, "15": 11.2, "16": 10.9}};
+const $ = (t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e;};
+
+let sfilter='all', tfilter='all', yfilter='all', ifilter='all', sorter='new';
+const sideTotal=t=>t.sides[0].total+t.sides[1].total;
+const sidePts=t=>t.sides.reduce((a,sd)=>a+sd.players.reduce((b,p)=>b+p.pts,0),0);
+const seasons=[...new Set(DATA.trades.map(t=>t.s))].sort().reverse();
+const teams=[...new Set(DATA.trades.flatMap(t=>t.sides.map(sd=>sd.name)))].sort();
+
+/* pick value chips */
+Object.entries(DATA.pickValues).forEach(([r,v])=>{
+  const c=$('span','pk','R'+r);c.appendChild($('span','frm',' '+v.toFixed(0)+' val'));
+  document.getElementById('pickVals').appendChild(c);
+});
+
+/* leaderboard — reacts to the filters */
+function renderStats(trades){
+  const host=document.getElementById('tstats');host.textContent='';
+  const st={};
+  trades.forEach(t=>{
+    t.sides.forEach((sd,i)=>{
+      const opp=t.sides[1-i];
+      const margin=sd.total-opp.total;
+      const s=st[sd.name]=st[sd.name]||{deals:0,w:0,l:0,e:0,net:0};
+      s.deals++;s.net+=margin;
+      if(margin>=50)s.w++;else if(margin<=-50)s.l++;else s.e++;
+    });
+  });
+  const rows=Object.entries(st).sort((a,b)=>b[1].net-a[1].net);
+  if(!rows.length){host.appendChild($('p','mut','No trades match these filters.'));return;}
+  const tbl=$('table','tbl');
+  const hr=$('tr');['Team','Deals','W-L-E','Net value',''].forEach(h=>hr.appendChild($('th',null,h)));
+  tbl.appendChild(hr);
+  rows.forEach(([name,s],i)=>{
+    const r=$('tr');
+    r.appendChild($('td',null,name));
+    r.appendChild($('td',null,String(s.deals)));
+    r.appendChild($('td',null,s.w+'‑'+s.l+'‑'+s.e));
+    r.appendChild($('td',s.net>0?'good':(s.net<0?'bad':''),(s.net>0?'+':'')+s.net.toFixed(0)));
+    const tag=$('td');
+    if(rows.length>1&&i===0)tag.appendChild($('span','chip mini','🦈 APEX TRADER'));
+    if(rows.length>1&&i===rows.length-1)tag.appendChild($('span','chip fire','🐟 THE FISH'));
+    r.appendChild(tag);
+    tbl.appendChild(r);
+  });
+  host.appendChild(tbl);
+}
+
+function pills(hostId,options,get,set){
+  const host=document.getElementById(hostId);host.textContent='';
+  options.forEach(([key,lab])=>{
+    const b=$('button','tpill'+(get()===key?' active':''),lab);b.type='button';
+    b.addEventListener('click',()=>{set(key);render();});
+    host.appendChild(b);
+  });
+}
+
+function render(){
+  const nPl=DATA.trades.filter(t=>t.type==='players').length;
+  const nPk=DATA.trades.filter(t=>t.type==='picks').length;
+  const nInj=DATA.trades.filter(t=>t.inj&&t.inj.length).length;
+  pills('typefilters',[['all','All deals ('+DATA.trades.length+')'],['players','Player-for-player ('+nPl+')'],['picks','Pick deals ('+nPk+')']],()=>yfilter,k=>yfilter=k);
+  pills('injfilters',[['all','Any injury status'],['inj','🚑 Injury-affected ('+nInj+')'],['clean','Clean deals']],()=>ifilter,k=>ifilter=k);
+  pills('sorters',[['new','Newest first'],['old','Oldest first'],['gap','Biggest value gap'],['value','Most total value'],['points','Most points moved']],()=>sorter,k=>sorter=k);
+  pills('filters',[['all','All seasons'],...seasons.map(s=>[s,s])],()=>sfilter,k=>sfilter=k);
+  pills('teamfilters',[['all','All teams'],...teams.map(n=>[n,n])],()=>tfilter,k=>tfilter=k);
+
+  const host=document.getElementById('trades');
+  host.textContent='';
+  let rows=DATA.trades.filter(t=>(yfilter==='all'||t.type===yfilter)
+    &&(sfilter==='all'||t.s===sfilter)
+    &&(tfilter==='all'||t.sides.some(sd=>sd.name===tfilter))
+    &&(ifilter==='all'||(ifilter==='inj'?(t.inj&&t.inj.length):!(t.inj&&t.inj.length))));
+  renderStats(rows);
+  if(sorter==='new')rows=[...rows].reverse();
+  else if(sorter==='gap')rows=[...rows].sort((a,b)=>b.diff-a.diff);
+  else if(sorter==='value')rows=[...rows].sort((a,b)=>sideTotal(b)-sideTotal(a));
+  else if(sorter==='points')rows=[...rows].sort((a,b)=>sidePts(b)-sidePts(a));
+  rows.forEach(t=>{
+    const card=$('article','trade');
+    const th=$('div','trade-head');
+    th.appendChild($('span','chip wk',t.s+' · WK '+t.wk));
+    th.appendChild($('span','chip even',t.type==='picks'?'PICK DEAL':'PLAYER DEAL'));
+    if(t.inj&&t.inj.length){
+      const ic=$('span','chip inj','🚑 LIKELY INJURY-AFFECTED');
+      ic.title=t.inj.join(', ');
+      th.appendChild(ic);
+    }
+    if(t.loser){
+      th.appendChild($('span','chip flag','FLEECED: '+t.loser+' (−'+t.diff.toFixed(0)+' value)'));
+    }else{
+      th.appendChild($('span','chip even','FAIR FIGHT'));
+    }
+    card.appendChild(th);
+    const sides=$('div','trade-sides');
+    t.sides.forEach(sd=>{
+      const box=$('div','side'+(t.loser===sd.name?' losing':''));
+      const sh=$('div','side-head');
+      sh.appendChild($('span','side-team',sd.name));
+      const val=$('span','side-cap');
+      val.appendChild($('b',null,sd.total.toFixed(0)+' value'));
+      sh.appendChild(val);
+      box.appendChild(sh);
+      const g=$('div','gets');
+      sd.players.forEach(p=>{
+        const pc=$('span','pchip');
+        pc.appendChild(document.createTextNode((p.inj?'🚑 ':'')+p.p));
+        pc.appendChild($('span','s',p.val.toFixed(0)+' val · '+p.pts.toFixed(0)+' pts'));
+        g.appendChild(pc);
+      });
+      sd.picks.forEach(pk=>{
+        const pc=$('span','pchip pick');
+        pc.appendChild(document.createTextNode(pk.lab));
+        pc.appendChild($('span','s',pk.val.toFixed(0)+' val'));
+        g.appendChild(pc);
+      });
+      if(!sd.players.length&&!sd.picks.length)g.appendChild($('span','pchip none','received nothing'));
+      box.appendChild(g);
+      const br=$('div','valbreak');
+      const bits=[];
+      if(sd.P)bits.push('production '+sd.P.toFixed(0));
+      if(sd.A)bits.push('keeper premium '+sd.A.toFixed(0));
+      if(sd.K)bits.push('picks '+sd.K.toFixed(0));
+      br.textContent=bits.join(' · ')||'—';
+      box.appendChild(br);
+      sides.appendChild(box);
+    });
+    card.appendChild(sides);
+    host.appendChild(card);
+  });
+}
+render();
+</script>

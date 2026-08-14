@@ -1,0 +1,166 @@
+<meta charset="utf-8">
+<title>GGG League — History</title>
+<link rel="stylesheet" href="ggg.css">
+__NAV__
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow">GGG League &middot; 2024&ndash;2025</div>
+    <h1>Six seasons of receipts</h1>
+    <p class="lede">Every banner, every bagel, every head-to-head grudge — computed from the full Sleeper record, safe from revisionist history.</p>
+  </header>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">Hall of Fame</div><h2>The banners</h2></div>
+    <div class="hof" id="hof"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">Hall of Shame</div><h2>The Toilet Bowl wall</h2>
+    <p class="sec-note">Last place, decided on the field. DaBlondest is the only two-time honoree. Since 2025 this costs $75.</p></div>
+    <div class="shame" id="shame"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">Franchises</div><h2>Career ledgers</h2>
+    <p class="sec-note">Regular-season records, all-time. Luck = wins above what your weekly scores deserved (all-play). Departed managers preserved for the record.</p></div>
+    <div class="card scroll" id="franchises"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">Head-to-head</div><h2>The grudge matrix</h2>
+    <p class="sec-note">Career regular-season records, row vs column. Green = winning record, red = losing.</p></div>
+    <div class="card scroll" id="h2h"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">Season archive</div><h2>Year by year</h2></div>
+    <div id="archive"></div>
+  </section>
+</div>
+__FOOT__
+<script>
+const DATA = /*__DATA__*/{};
+const $ = (t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e;};
+
+/* HOF banners */
+(function(){
+  const host = document.getElementById('hof');
+  [...DATA.seasons].reverse().forEach(s=>{
+    const b = $('div','banner');
+    b.appendChild($('div','byear', s.season));
+    b.appendChild($('div','bname', s.champ));
+    b.appendChild($('div','bsub', 'def. ' + s.runner));
+    host.appendChild(b);
+  });
+})();
+
+/* shame wall */
+(function(){
+  const host = document.getElementById('shame');
+  [...DATA.seasons].reverse().forEach(s=>{
+    if(!s.toilet) return;
+    const b = $('div','shamecard');
+    b.appendChild($('div','byear', s.season));
+    b.appendChild($('div','bname', s.toilet));
+    host.appendChild(b);
+  });
+})();
+
+/* franchise table — sortable */
+(function(){
+  const host = document.getElementById('franchises');
+  const COLS = [
+    ['Manager','name'],['Seasons','seasons'],['W-L','w'],['Win%','pct'],['PF','pf'],
+    ['Titles','titles'],['2nd','runnerups'],['3rd','thirds'],['Playoffs','po_apps'],
+    ['Hi-wks','high_weeks'],['🚽','toilets'],['Luck','luck'],['W str','streak_w'],['L str','streak_l']
+  ];
+  let sortKey = null, sortDir = -1;   // default: precomputed order (titles, then win%)
+  const tbl = $('table','tbl');
+  host.appendChild(tbl);
+
+  function draw(){
+    tbl.textContent='';
+    const hr = $('tr');
+    COLS.forEach(([lab,key])=>{
+      const th = $('th','sortable', lab + (sortKey===key ? (sortDir<0?' ▼':' ▲') : ''));
+      th.addEventListener('click',()=>{
+        if(sortKey===key){ sortDir=-sortDir; }
+        else { sortKey=key; sortDir = key==='name' ? 1 : -1; }
+        draw();
+      });
+      hr.appendChild(th);
+    });
+    tbl.appendChild(hr);
+    const rows = [...DATA.career];
+    if(sortKey){
+      rows.sort((a,b)=>{
+        const av=a[sortKey], bv=b[sortKey];
+        return (typeof av==='string' ? av.localeCompare(bv) : av-bv) * sortDir;
+      });
+    }
+    rows.forEach(c=>{
+      const r = $('tr', c.active ? '' : 'departed');
+      const nameTd = $('td','wrapok',c.name);
+      if (c.aliases.length>1) { nameTd.appendChild($('span','mut small',' (' + c.aliases.filter(a=>a!==c.name).join(', ') + ')')); }
+      r.appendChild(nameTd);
+      [c.seasons, c.w+'-'+c.l, c.pct.toFixed(3), c.pf, c.titles||'—', c.runnerups||'—', c.thirds||'—', c.po_apps||'—', c.high_weeks||'—', c.toilets||'—'].forEach(v=>r.appendChild($('td',null,String(v))));
+      r.appendChild($('td', c.luck>1?'good':(c.luck<-1?'bad':''), (c.luck>0?'+':'')+c.luck));
+      r.appendChild($('td',null,String(c.streak_w)));
+      r.appendChild($('td',null,String(c.streak_l)));
+      tbl.appendChild(r);
+    });
+  }
+  draw();
+})();
+
+/* h2h matrix */
+(function(){
+  const host = document.getElementById('h2h');
+  const names = Object.keys(DATA.h2h);
+  const tbl = $('table','tbl matrix');
+  const hr = $('tr'); hr.appendChild($('th',null,''));
+  names.forEach(n=>hr.appendChild($('th','rot',n)));
+  tbl.appendChild(hr);
+  names.forEach(a=>{
+    const r = $('tr');
+    r.appendChild($('th',null,a));
+    names.forEach(b=>{
+      if(a===b){ r.appendChild($('td','self','—')); return; }
+      const rec = DATA.h2h[a][b];
+      const cls = rec.w>rec.l?'winrec':(rec.w<rec.l?'loserec':'');
+      r.appendChild($('td',cls,rec.w+'-'+rec.l));
+    });
+    tbl.appendChild(r);
+  });
+  host.appendChild(tbl);
+})();
+
+/* season archive */
+(function(){
+  const host = document.getElementById('archive');
+  [...DATA.seasons].reverse().forEach(s=>{
+    const det = $('details','seasonbox');
+    const sum = $('summary');
+    sum.appendChild($('b',null,s.season));
+    sum.appendChild(document.createTextNode('  🏆 ' + s.champ + '   🚽 ' + (s.toilet||'—')));
+    det.appendChild(sum);
+    const tbl = $('table','tbl');
+    const hr = $('tr'); ['#','Team','W-L','PF','PA',''].forEach(h=>hr.appendChild($('th',null,h))); tbl.appendChild(hr);
+    s.standings.forEach((t,i)=>{
+      const r = $('tr');
+      r.appendChild($('td','mut',String(i+1)));
+      r.appendChild($('td',null,t.name));
+      r.appendChild($('td',null,t.w+'-'+t.l));
+      r.appendChild($('td',null,String(t.pf)));
+      r.appendChild($('td','mut',String(t.pa)));
+      const tag=$('td');
+      if(t.name===s.champ) tag.appendChild($('span','chip gold','CHAMP'));
+      else if(t.name===s.toilet) tag.appendChild($('span','chip fire','TOILET'));
+      r.appendChild(tag);
+      tbl.appendChild(r);
+    });
+    const sc=$('div','scroll'); sc.appendChild(tbl); det.appendChild(sc);
+    host.appendChild(det);
+  });
+})();
+</script>

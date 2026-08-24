@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <title>LOB League</title>
-<script>try{if(!localStorage.getItem('lob-pitch-v2'))location.replace('pitch.html');}catch(e){}</script><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="stylesheet" href="ggg.css?v=fef718f7">
+<script>try{if(!localStorage.getItem('lob-pitch-v2'))location.replace('pitch.html');}catch(e){}</script><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="stylesheet" href="ggg.css?v=a38b652f">
 <nav class="ggg"><div class="in"><span class="logo">LOB</span><div class="navgrp newg"><span class="navcap">New · your team</span><div class="navlinks"><a href="index.html" class="on">Home</a><a href="analyzer.html" class="">Trade Tester</a></div></div><div class="navgrp histg"><span class="navcap">League history</span><div class="navlinks"><a href="history.html" class="">History</a><a href="records.html" class="">Records</a><a href="drafts.html" class="">Drafts</a><a href="trades.html" class="">Trades</a></div></div><a href="pitch.html" class="pitchtab">🗳️ The Proposal</a><a href="lab.html" class="labtab">⚙️ Commish tools</a></div></nav>
 <div class="wrap wide">
   <header class="hero dashhero">
@@ -110,7 +110,7 @@ function skel(card,lines){
 const bar=document.getElementById('teambar');
 DATA.teams.forEach((tm,ti)=>{
   const b=$('button','tpill',tm.name);b.type='button';
-  b.addEventListener('click',()=>{myTeam=ti;localStorage.setItem(MYKEY,String(ti));cbOpen.add(ti);render();});
+  b.addEventListener('click',()=>{myTeam=ti;localStorage.setItem(MYKEY,String(ti));cbOpen=ti;render();});
   bar.appendChild(b);
 });
 
@@ -167,7 +167,7 @@ function assignKeeps(tm,chosen){
 
 /* ---------- per-team cap breakdown (expands under a cap-board row) ---------- */
 const BASE16=(()=>{let s=0;for(let r=1;r<=16;r++)s+=TABLE[r];return s;})();
-let cbOpen=new Set(myTeam>=0?[myTeam]:[]);
+let cbOpen=myTeam>=0?myTeam:-1;   /* one open breakdown at a time */
 
 function capDetail(ti){
   const tm=DATA.teams[ti],ev=evalTeam(ti),chosen=sel(ti);
@@ -509,10 +509,10 @@ function capBoardCard(span){
     return {name:tm.name,ti,ev,val};
   }).sort((a,b)=>b.val-a.val);
   rows.forEach(r=>{
-    const isOpen=cbOpen.has(r.ti);
+    const isOpen=cbOpen===r.ti;
     const row=$('div','cbrow clickable');
     row.tabIndex=0;
-    const tog=()=>{isOpen?cbOpen.delete(r.ti):cbOpen.add(r.ti);render();};
+    const tog=()=>{cbOpen=isOpen?-1:r.ti;render();};
     row.addEventListener('click',tog);
     row.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();tog();}});
     const nm=$('div','cbname'+(r.ti===myTeam?' good':''));

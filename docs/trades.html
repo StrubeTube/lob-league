@@ -100,7 +100,9 @@ function mkLine(m){
 /* the keeper market — every preseason deal where the traded player got kept */
 (function(){
   const M=DATA.market;
-  if(!M||!M.events||!M.events.length)return;
+  if(!M||!M.events)return;
+  const rows=M.events.filter(e=>e.delta!=null);   /* only deals the line can grade */
+  if(!rows.length)return;
   document.getElementById('mktSec').hidden=false;
   const fit=M.fit;
   document.getElementById('mktNote').textContent=
@@ -108,24 +110,47 @@ function mkLine(m){
     +(fit?(fit.young
       ?('Young market \u2014 too few deals to fit a price curve, so the going rate is the median price paid so far (\u2248'+Math.round(fit.a)+' slots).')
       :('The going rate, fitted on '+fit.n+' deals: \u2248 '+fit.a+' slots + '+fit.b+' per surplus slot \u2014 over/under is measured against that line.')):'')
-    +(M.events.some(e=>e.prov)?' 2026 rows (\u2217) are provisional \u2014 built from official Sleeper keepers, final once the draft locks \u2014 and do not feed the fitted rate.':'');
-  const tbl=$('table','tbl');
-  const hr=$('tr');['Season','Buyer','Keeper (kept at)','ADP','Surplus','Net picks paid','Net slots','vs market'].forEach(h=>hr.appendChild($('th',null,h)));
-  tbl.appendChild(hr);
-  M.events.forEach(e=>{
-    const r=$('tr');
-    r.appendChild($('td',null,e.s+(e.prov?' \u2217':'')));
-    r.appendChild($('td',null,e.team));
-    r.appendChild($('td',null,e.ks.map(k=>k.n+' (R'+k.kr+')').join(', ')));
-    r.appendChild($('td',null,e.ks.map(k=>k.adp!=null?k.adp:'\u2014').join(', ')));
-    r.appendChild($('td',e.surp>0?'good':(e.surp<0?'bad':''),e.surp!=null?((e.surp>0?'+':'')+e.surp):'\u2014'));
-    r.appendChild($('td',null,pickStr(e)==='no picks'?'\u2014':pickStr(e)));
-    r.appendChild($('td',null,String(e.pslots||0)));
-    const d=e.delta;
-    r.appendChild($('td',d==null?'':(d>35?'bad':(d<-35?'good':'')),d==null?'\u2014':(d>0?('+'+d+' over'):(d<0?((-d)+' under'):'even'))));
-    tbl.appendChild(r);
-  });
-  document.getElementById('mktTable').appendChild(tbl);
+    +(rows.some(e=>e.prov)?' 2026 rows (\u2217) are provisional \u2014 built from official Sleeper keepers, final once the draft locks \u2014 and do not feed the fitted rate.':'')
+    +' Deals the line can\u2019t grade (no ADP, or no net picks paid) are hidden. Click a column header to sort.';
+  const COLS=[
+    ['s','Season',e=>+e.s],
+    ['team','Buyer',e=>e.team.toLowerCase()],
+    ['k','Keeper (kept at)',e=>e.ks.map(x=>x.n).join(', ').toLowerCase()],
+    ['adp','ADP',e=>e.ks[0].adp!=null?e.ks[0].adp:999],
+    ['surp','Surplus',e=>e.surp],
+    ['paid','Net picks paid',e=>e.pslots],
+    ['net','Net slots',e=>e.pslots],
+    ['vs','vs market',e=>e.delta]];
+  let sortK='s',sortD=-1;   /* default: newest first; first click on a column = descending */
+  function renderTbl(){
+    const host=document.getElementById('mktTable');host.textContent='';
+    const tbl=$('table','tbl');
+    const hr=$('tr');
+    COLS.forEach(([key,lab])=>{
+      const th=$('th','sortable',lab+(sortK===key?(sortD<0?' \u2193':' \u2191'):''));
+      th.style.cursor='pointer';
+      th.addEventListener('click',()=>{sortD=sortK===key?-sortD:-1;sortK=key;renderTbl();});
+      hr.appendChild(th);
+    });
+    tbl.appendChild(hr);
+    const val=COLS.find(c=>c[0]===sortK)[2];
+    [...rows].sort((a,b)=>{const x=val(a),y=val(b);return (x>y?1:x<y?-1:0)*sortD;})
+      .forEach(e=>{
+        const r=$('tr');
+        r.appendChild($('td',null,e.s+(e.prov?' \u2217':'')));
+        r.appendChild($('td',null,e.team));
+        r.appendChild($('td',null,e.ks.map(k=>k.n+' (R'+k.kr+')').join(', ')));
+        r.appendChild($('td',null,e.ks.map(k=>k.adp!=null?k.adp:'\u2014').join(', ')));
+        r.appendChild($('td',null,(e.surp>0?'+':'')+e.surp));
+        r.appendChild($('td',null,pickStr(e)==='no picks'?'\u2014':pickStr(e)));
+        r.appendChild($('td',null,String(e.pslots)));
+        const d=e.delta;
+        r.appendChild($('td',d>0?'bad':(d<0?'good':''),d>0?('+'+d+' over'):(d<0?((-d)+' under'):'even')));
+        tbl.appendChild(r);
+      });
+    host.appendChild(tbl);
+  }
+  renderTbl();
 })();
 
 /* pick value chips */

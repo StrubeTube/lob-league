@@ -88,7 +88,7 @@ function mkLine(m){
     div.appendChild($('span','mut small',' going rate for that surplus \u2248 '+m.fair+' slots'));
   }
   if(m.surp!=null&&DATA.market&&DATA.market.events){
-    const comps=DATA.market.events.filter(e=>e.surp!=null&&e.pslots>0&&!e.prov)
+    const comps=DATA.market.events.filter(e=>e.surp!=null&&e.pslots>0&&!e.prov&&e!==m)
       .map(e=>({e,d:Math.abs(e.surp-m.surp)})).sort((a,b)=>a.d-b.d).slice(0,3);
     if(comps.length)div.appendChild($('span','comps','closest comps: '+comps.map(({e})=>
       e.ks.map(k=>k.n).join(' + ')+' ('+(e.surp>0?'+':'')+e.surp+' surplus) went for '
@@ -402,6 +402,12 @@ function render(){
     });
     card.appendChild(sides);
     if(t.cap&&t.mk)t.mk.forEach(m=>card.appendChild(mkLine(m)));
+    /* graded preseason deals also show the price-at-the-time market read */
+    if(!t.cap&&t.wk===1&&DATA.market&&DATA.market.events){
+      DATA.market.events.filter(e=>!e.prov&&e.s===t.s&&t.sides.some(sd=>sd.name===e.team
+        &&e.ks.every(k=>sd.players.some(p=>p.p===k.n))))
+        .forEach(m=>card.appendChild(mkLine(m)));
+    }
     host.appendChild(card);
   });
 }

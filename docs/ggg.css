@@ -319,6 +319,19 @@ box-shadow:0 6px 18px rgba(0,0,0,.35);pointer-events:none}
 .anatseg:hover{filter:brightness(1.25)}
 .anatlegend{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
 .anattotal{margin-top:12px;font-size:13.5px;font-weight:600}
+/* expandable cap-board rows + per-team breakdown panel */
+.cbrow.clickable{cursor:pointer}
+.cbrow.clickable:hover .cbteam{color:var(--mint)}
+.cbrow.clickable:focus-visible{outline:2px solid var(--mint);outline-offset:2px;border-radius:8px}
+.caret{color:var(--ink3);font-size:10px;flex:none;width:11px}
+.cbdetail{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px 13px;margin:4px 0 10px}
+.cbdetail .mlabel{margin-top:14px}
+.klist{display:flex;flex-direction:column;gap:7px;margin-top:2px}
+.kchip{display:flex;align-items:center;gap:9px;font-size:13.5px;flex-wrap:wrap}
+.kchip .meta{color:var(--ink3);font-size:12px}
+.kchip .meta.bad{color:var(--coral)}
+.gobtn{display:block;text-align:center;margin-top:12px;padding:12px 16px;border-radius:12px;background:var(--mint);color:var(--mint-ink);font-weight:700;font-size:14px;text-decoration:none}
+.gobtn:hover{filter:brightness(1.07)}
 .cdrows{display:grid;gap:9px;margin-top:6px}
 .cdrow{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:8px}
 .cdrow:last-child{border-bottom:none;padding-bottom:0}
@@ -372,6 +385,9 @@ nav.ggg a.pitchtab,nav.ggg a.labtab{flex:none}
 .anatbar{height:64px}
 .anatseg span{max-height:58px}
 .anattip{top:74px}
+.cbdetail{padding:11px 12px 10px}
+.kchip{font-size:12.5px}
+.gobtn{font-size:13px;padding:11px 12px}
 .lockwrap{margin:48px auto}
 .ctlrow{grid-template-columns:90px 1fr 64px}
 footer.ggg .in{padding:14px 12px}

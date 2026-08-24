@@ -22,7 +22,7 @@
 
   <section>
     <div class="sec-head"><div class="eyebrow">The trade circle</div><h2>Who deals with whom &mdash; and which way the value flows</h2>
-    <p class="sec-note"><b>Circle size = trades made</b> &mdash; the number inside counts them. Each strand joins two trade partners, and it runs <b>thin and <span class="bad">red</span> at the losing end, thick and <span class="good">green</span> at the winning end</b> &mdash; the value flows toward the fat green side. Gray strands are about even. <b>Tap a circle to hide that manager</b>; everyone left resizes and the web declutters. Tap a strand for its numbers. Reacts to the filters above &mdash; graded deals only.</p></div>
+    <p class="sec-note"><b>Circle size = trades made</b> &mdash; the number inside counts them. Each strand joins two trade partners, and it runs <b>thin and <span class="bad">red</span> at the losing end, thick and <span class="good">green</span> at the winning end</b> &mdash; the value flows toward the fat green side. Gray strands are about even. <b>Hover a circle to spotlight only that manager&rsquo;s strands</b>; <b>tap it to hide them entirely</b> &mdash; everyone left resizes and the web declutters. Tap a strand for its numbers. Reacts to the filters above &mdash; graded deals only.</p></div>
     <div class="card">
       <div class="flowwrap" id="flowwrap"></div>
       <p class="cardnote2" id="flowinfo"></p>
@@ -207,6 +207,11 @@ function renderFlow(trades){
     tt.textContent=on?(n+' \u00b7 '+d2+' deal'+(d2===1?'':'s')+' shown \u00b7 net '+(net>0?'+':'')+net.toFixed(0)+' value \u00b7 tap to hide')
                     :(n+' \u2014 hidden \u00b7 tap to bring back');
     g.appendChild(tt);
+    g.addEventListener('mouseenter',()=>{if(!on)return;
+      [...svg.querySelectorAll('.flowedge')].forEach(el=>el.classList.toggle('faded',
+        el.getAttribute('data-a')!==n&&el.getAttribute('data-b')!==n));});
+    g.addEventListener('mouseleave',()=>{
+      [...svg.querySelectorAll('.flowedge')].forEach(el=>el.classList.remove('faded'));});
     g.addEventListener('click',e=>{e.stopPropagation();
       flowOff.has(n)?flowOff.delete(n):flowOff.add(n);render();});
     svg.appendChild(g);

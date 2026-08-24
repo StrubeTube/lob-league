@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <title>LOB League — Trade Archive</title>
-<script>try{if(!localStorage.getItem('lob-pitch-v2'))location.replace('pitch.html');}catch(e){}</script><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="stylesheet" href="ggg.css?v=a38b652f">
+<script>try{if(!localStorage.getItem('lob-pitch-v2'))location.replace('pitch.html');}catch(e){}</script><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="stylesheet" href="ggg.css?v=25669768">
 <nav class="ggg"><div class="in"><span class="logo">LOB</span><div class="navgrp newg"><span class="navcap">New · your team</span><div class="navlinks"><a href="index.html" class="">Home</a><a href="analyzer.html" class="">Trade Tester</a></div></div><div class="navgrp histg"><span class="navcap">League history</span><div class="navlinks"><a href="history.html" class="">History</a><a href="records.html" class="">Records</a><a href="drafts.html" class="">Drafts</a><a href="trades.html" class="on">Trades</a></div></div><a href="pitch.html" class="pitchtab">🗳️ The Proposal</a><a href="lab.html" class="labtab">⚙️ Commish tools</a></div></nav>
 <div class="wrap">
   <header class="hero">
@@ -21,11 +21,10 @@
   </section>
 
   <section>
-    <div class="sec-head"><div class="eyebrow">The trade web</div><h2>Who deals with whom &mdash; and which way the value flows</h2>
-    <p class="sec-note">Every strand connects two trade partners. <b>Thicker strand = more deals</b> between them. The color runs <b class="bad">red</b> &rarr; <b class="good">green</b> in the direction the value moved &mdash; the green end is winning that rivalry, by the model. Gray = about even. Bigger dot = busier trader. It reacts to the filters above.</p></div>
+    <div class="sec-head"><div class="eyebrow">The rivalry board</div><h2>Who deals with whom &mdash; and who&rsquo;s winning the rivalry</h2>
+    <p class="sec-note">Every trading pair is a tug-of-war. The bar pulls toward the team that&rsquo;s <b>up on total value</b> across their deals &mdash; <b>longer = more lopsided</b>, <b>thicker = more deals</b> between them. A dot on the dashed center line means the rivalry is about even. It reacts to the filters above.</p></div>
     <div class="card">
       <div class="flowwrap" id="flowwrap"></div>
-      <p class="cardnote2" id="flowinfo"></p>
     </div>
   </section>
 
@@ -90,85 +89,66 @@ function renderStats(trades){
   host.appendChild(tbl);
 }
 
-/* ---------- the trade web: pairwise volume + which way the value flows ---------- */
-const SVGNS='http://www.w3.org/2000/svg';
-const sv=(t,at)=>{const e=document.createElementNS(SVGNS,t);for(const k in at)e.setAttribute(k,at[k]);return e;};
-const FLOWHINT='Tap a strand for that rivalry, a team name for their totals, or empty space to reset.';
-let gradSeq=0;
-function fadeEdges(svg,pred){
-  svg.querySelectorAll('.flowedge').forEach(e=>{
-    e.classList.toggle('faded',pred?!pred(e.getAttribute('data-a'),e.getAttribute('data-b')):false);
-  });
-}
+/* ---------- the rivalry board: every trading pair as a tug-of-war ---------- */
+let rivSort='deals';
 function renderFlow(trades){
   const host=document.getElementById('flowwrap');host.textContent='';
-  const info=document.getElementById('flowinfo');
-  const N=teams.length;
-  if(!trades.length||N<2){host.appendChild($('p','mut','No trades match these filters.'));info.textContent='';return;}
-  const idx={};teams.forEach((n,i)=>idx[n]=i);
-  /* aggregate every filtered deal into its pair */
-  const pairs={},vol={};
+  if(!trades.length){host.appendChild($('p','mut','No trades match these filters.'));return;}
+  const pairs={};
   trades.forEach(t=>{
     const [x,y]=t.sides;
     const [a,b]=[x.name,y.name].sort();
     const p=pairs[a+'|'+b]=pairs[a+'|'+b]||{a,b,deals:0,net:0};
     p.deals++;
     p.net+=(x.name===a?x.total-y.total:y.total-x.total);   /* + = value flowed to a */
-    vol[x.name]=(vol[x.name]||0)+1;vol[y.name]=(vol[y.name]||0)+1;
   });
   const list=Object.values(pairs);
-  const W=720,H=560,cx=W/2,cy=H/2,R=Math.min(W,H)/2-80;
-  const svg=sv('svg',{viewBox:'0 0 '+W+' '+H,class:'tradeweb'});
-  const defs=sv('defs',{});svg.appendChild(defs);
-  const pos=teams.map((n,i)=>{const ang=-Math.PI/2+i*2*Math.PI/N;
-    return {ang,x:cx+R*Math.cos(ang),y:cy+R*Math.sin(ang)};});
-  const maxDeals=Math.max(...list.map(p=>p.deals));
+  list.sort(rivSort==='deals'
+    ?((u,v)=>v.deals-u.deals||Math.abs(v.net)-Math.abs(u.net))
+    :((u,v)=>Math.abs(v.net)-Math.abs(u.net)||v.deals-u.deals));
+  const fr=$('div','filterrow tight');
+  [['deals','Most deals first'],['net','Most lopsided first']].forEach(([k,lab])=>{
+    const b=$('button','tpill sm'+(rivSort===k?' active':''),lab);b.type='button';
+    b.addEventListener('click',()=>{rivSort=k;render();});
+    fr.appendChild(b);
+  });
+  host.appendChild(fr);
+  const maxNet=Math.max(25,...list.map(p=>Math.abs(p.net)));
   const EVEN=25;   /* |net| under 25 value = call the rivalry even */
   list.forEach(p=>{
-    const P1=pos[idx[p.a]],P2=pos[idx[p.b]];
-    const qx=cx+((P1.x+P2.x)/2-cx)*0.35,qy=cy+((P1.y+P2.y)/2-cy)*0.35;
-    let stroke='var(--ink3)';
-    if(Math.abs(p.net)>=EVEN){
-      const id='fg'+(gradSeq++);
-      const g=sv('linearGradient',{id,gradientUnits:'userSpaceOnUse',x1:P1.x,y1:P1.y,x2:P2.x,y2:P2.y});
-      const s1=sv('stop',{offset:'0%'}),s2=sv('stop',{offset:'100%'});
-      s1.style.stopColor=p.net>0?'var(--mint)':'var(--coral)';
-      s2.style.stopColor=p.net>0?'var(--coral)':'var(--mint)';
-      g.appendChild(s1);g.appendChild(s2);defs.appendChild(g);
-      stroke='url(#'+id+')';
+    const even=Math.abs(p.net)<EVEN;
+    const aWins=p.net>0;
+    const row=$('div','rivrow');
+    const name=(n,side,winner,loser)=>{
+      const d=$('div','rivname '+side+(winner?' win':'')+(loser?' lose':''));
+      d.appendChild($('b',null,n));
+      if(winner)d.appendChild($('span','rivval','+'+Math.abs(p.net).toFixed(0)));
+      return d;
+    };
+    row.appendChild(name(p.a,'ra',!even&&aWins,!even&&!aWins));
+    const tr=$('div','rivtrack');
+    tr.appendChild($('div','rivmid'));
+    const h=7+Math.min(11,p.deals*2.2);
+    if(even){
+      const dot=$('div','rivdot');dot.style.width=dot.style.height=h+'px';
+      tr.appendChild(dot);
+    }else{
+      const bar=$('div','rivbar'+(aWins?' left':''));
+      bar.style.height=h+'px';
+      bar.style.width=Math.max(4,Math.abs(p.net)/maxNet*46)+'%';
+      tr.appendChild(bar);
     }
-    const path=sv('path',{d:'M'+P1.x+' '+P1.y+' Q'+qx+' '+qy+' '+P2.x+' '+P2.y,
-      fill:'none','stroke-width':(2+(p.deals/maxDeals)*11).toFixed(1),
-      'stroke-linecap':'round','class':'flowedge','data-a':p.a,'data-b':p.b});
-    path.style.stroke=stroke;
-    const lab=p.a+' \u2194 '+p.b+' \u00b7 '+p.deals+' deal'+(p.deals===1?'':'s')+' \u00b7 '
-      +(Math.abs(p.net)<EVEN?('about even (net '+Math.abs(p.net).toFixed(0)+')')
-        :('net '+Math.abs(p.net).toFixed(0)+' value to '+(p.net>0?p.a:p.b)));
-    const tt=sv('title',{});tt.textContent=lab;path.appendChild(tt);
-    path.addEventListener('click',e=>{e.stopPropagation();info.textContent=lab;
-      fadeEdges(svg,(a,b)=>a===p.a&&b===p.b);});
-    svg.appendChild(path);
+    row.appendChild(tr);
+    row.appendChild(name(p.b,'rb',!even&&!aWins,!even&&aWins));
+    const dc=$('div','rivdeals');
+    dc.appendChild($('b',null,String(p.deals)));
+    dc.appendChild(document.createTextNode(p.deals===1?' deal':' deals'));
+    row.appendChild(dc);
+    row.title=p.a+' \u2194 '+p.b+' \u00b7 '+p.deals+' deal'+(p.deals===1?'':'s')+' \u00b7 '
+      +(even?('about even (net '+Math.abs(p.net).toFixed(0)+')')
+        :('net '+Math.abs(p.net).toFixed(0)+' value to '+(aWins?p.a:p.b)));
+    host.appendChild(row);
   });
-  teams.forEach((n,i)=>{
-    const P=pos[i],deals=vol[n]||0;
-    const g=sv('g',{'class':'flownode'+(deals?'':' dim'),'data-n':n});
-    g.appendChild(sv('circle',{cx:P.x,cy:P.y,r:(5+Math.min(9,deals*1.4)).toFixed(1)}));
-    const co=Math.cos(P.ang),si=Math.sin(P.ang);
-    const t=sv('text',{x:cx+(R+18)*co,y:cy+(R+18)*si+(si>0.5?11:(si<-0.5?-5:4)),
-      'text-anchor':co>0.25?'start':(co<-0.25?'end':'middle')});
-    t.textContent=n.length>16?(n.slice(0,15)+'\u2026'):n;
-    g.appendChild(t);
-    let d2=0,net=0;
-    trades.forEach(tr=>tr.sides.forEach((sd,k)=>{if(sd.name===n){d2++;net+=sd.total-tr.sides[1-k].total;}}));
-    const lab=n+' \u00b7 '+d2+' deal'+(d2===1?'':'s')+' \u00b7 net '+(net>0?'+':'')+net.toFixed(0)+' value';
-    const tt=sv('title',{});tt.textContent=lab;g.appendChild(tt);
-    g.addEventListener('click',e=>{e.stopPropagation();info.textContent=lab;
-      fadeEdges(svg,(a,b)=>a===n||b===n);});
-    svg.appendChild(g);
-  });
-  svg.addEventListener('click',()=>{info.textContent=FLOWHINT;fadeEdges(svg,null);});
-  host.appendChild(svg);
-  info.textContent=FLOWHINT;
 }
 
 function pills(hostId,options,get,set){

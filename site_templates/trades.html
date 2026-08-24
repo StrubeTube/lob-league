@@ -69,13 +69,17 @@ const seasons=[...new Set(ALL.map(t=>t.s))].sort().reverse();
 const teams=[...new Set(ALL.flatMap(t=>t.sides.map(sd=>sd.name)))].sort();
 
 /* keeper-market read on a current-season deal */
+function pickStr(e){
+  const out=e.paid&&e.paid.length?('R'+e.paid.join('+R')):'no picks';
+  return out+((e.got&&e.got.length)?(' \u2212 R'+e.got.join('\u2212R')+' back'):'');
+}
 function mkLine(m){
   const div=$('div','mkline');
   const bits=m.ks.map(k=>k.n+' keeps at R'+k.kr
     +(k.adp!=null?(' · ADP '+k.adp+' \u2192 '+(k.surp>0?'+':'')+k.surp+' surplus'):' · no national ADP')
     +(k.kset?(k.kept?' \ud83d\udd12':' · not among their locked keeps yet'):''));
   let txt='\u2696 '+m.team+': '+bits.join(' · ');
-  if(m.pslots>0)txt+=' — paid R'+m.paid.join('+R')+' ('+m.pslots+' slots)';
+  if((m.paid&&m.paid.length)||(m.got&&m.got.length))txt+=' — '+pickStr(m)+' \u2192 net '+m.pslots+' slots';
   div.appendChild(document.createTextNode(txt));
   if(m.fair!=null){
     const over=m.delta>35,under=m.delta<-35;
@@ -84,11 +88,11 @@ function mkLine(m){
     div.appendChild($('span','mut small',' going rate for that surplus \u2248 '+m.fair+' slots'));
   }
   if(m.surp!=null&&DATA.market&&DATA.market.events){
-    const comps=DATA.market.events.filter(e=>e.surp!=null&&e.pslots>0)
+    const comps=DATA.market.events.filter(e=>e.surp!=null&&e.pslots>0&&!e.prov)
       .map(e=>({e,d:Math.abs(e.surp-m.surp)})).sort((a,b)=>a.d-b.d).slice(0,3);
     if(comps.length)div.appendChild($('span','comps','closest comps: '+comps.map(({e})=>
       e.ks.map(k=>k.n).join(' + ')+' ('+(e.surp>0?'+':'')+e.surp+' surplus) went for '
-      +(e.paid.length?('R'+e.paid.join('+R')):'no picks')+" in '"+String(e.s).slice(2)).join(' · ')));
+      +pickStr(e)+' (net '+e.pslots+')'+" in '"+String(e.s).slice(2)).join(' · ')));
   }
   return div;
 }
@@ -100,13 +104,13 @@ function mkLine(m){
   document.getElementById('mktSec').hidden=false;
   const fit=M.fit;
   document.getElementById('mktNote').textContent=
-    'Every preseason trade in league history where the player acquired was KEPT that season: the round he was kept at, his national ADP at the time (FantasyFootballCalculator, half-PPR), the surplus that keep carried (keep slot \u2212 ADP, in draft slots), and the picks paid for him (draft-position slots, future years \u221215%/yr). '
+    'Every preseason trade in league history where the player acquired was KEPT that season: the round he was kept at, his national ADP at the time (FantasyFootballCalculator, half-PPR), the surplus that keep carried (keep slot \u2212 ADP, in draft slots), and the NET picks paid for him \u2014 picks sent minus picks received back in the same deal (draft-position slots, future years \u221215%/yr). '
     +(fit?(fit.young
       ?('Young market \u2014 too few deals to fit a price curve, so the going rate is the median price paid so far (\u2248'+Math.round(fit.a)+' slots).')
       :('The going rate, fitted on '+fit.n+' deals: \u2248 '+fit.a+' slots + '+fit.b+' per surplus slot \u2014 over/under is measured against that line.')):'')
     +(M.events.some(e=>e.prov)?' 2026 rows (\u2217) are provisional \u2014 built from official Sleeper keepers, final once the draft locks \u2014 and do not feed the fitted rate.':'');
   const tbl=$('table','tbl');
-  const hr=$('tr');['Season','Buyer','Keeper (kept at)','ADP','Surplus','Picks paid','Slots','vs market'].forEach(h=>hr.appendChild($('th',null,h)));
+  const hr=$('tr');['Season','Buyer','Keeper (kept at)','ADP','Surplus','Net picks paid','Net slots','vs market'].forEach(h=>hr.appendChild($('th',null,h)));
   tbl.appendChild(hr);
   M.events.forEach(e=>{
     const r=$('tr');
@@ -115,7 +119,7 @@ function mkLine(m){
     r.appendChild($('td',null,e.ks.map(k=>k.n+' (R'+k.kr+')').join(', ')));
     r.appendChild($('td',null,e.ks.map(k=>k.adp!=null?k.adp:'\u2014').join(', ')));
     r.appendChild($('td',e.surp>0?'good':(e.surp<0?'bad':''),e.surp!=null?((e.surp>0?'+':'')+e.surp):'\u2014'));
-    r.appendChild($('td',null,e.paid.length?('R'+e.paid.join(' + R')):'\u2014'));
+    r.appendChild($('td',null,pickStr(e)==='no picks'?'\u2014':pickStr(e)));
     r.appendChild($('td',null,String(e.pslots||0)));
     const d=e.delta;
     r.appendChild($('td',d==null?'':(d>35?'bad':(d<-35?'good':'')),d==null?'\u2014':(d>0?('+'+d+' over'):(d<0?((-d)+' under'):'even'))));

@@ -6,7 +6,7 @@ __NAV__
   <header class="hero">
     <div class="eyebrow">GGG League &middot; 2024&ndash;2026 &middot; the value model</div>
     <h1>The Trade Archive</h1>
-    <p class="lede">Every trade ever, scored by one number per side. <b>Value = position-adjusted points over replacement</b> (rest of season, on your roster — QB points count less because replacement QBs score more) <b>+ a 30% keeper premium</b> for producers drafted cheap <b>+ pick value</b> from six years of draft history, discounted 15% per year until the pick conveys. A side is FLEECED at a 50+ value deficit.</p>
+    <p class="lede">Every trade ever, scored by one number per side. <b>Value = position-adjusted points over replacement</b> (rest of season, on your roster — QB points count less because replacement QBs score more) <b>+ a 30% keeper premium</b> for producers drafted cheap <b>+ pick value</b> from six years of draft history, discounted 15% per year until the pick conveys. <b>+ the keeper-market discount</b> when a preseason pickup gets kept: his keep slot minus that season&rsquo;s national ADP, converted to value points. A side is FLEECED at a 50+ value deficit.</p>
     <details class="tbl-details"><summary class="mut">What's a pick worth under this model?</summary>
       <div class="pickchips" id="pickVals" style="margin-top:10px"></div>
     </details>
@@ -396,6 +396,7 @@ function render(){
       if(sd.P)bits.push('production '+sd.P.toFixed(0));
       if(sd.A)bits.push('keeper premium '+sd.A.toFixed(0));
       if(sd.K)bits.push('picks '+sd.K.toFixed(0));
+      if(sd.S)bits.push('keeper market '+(sd.S>0?'+':'')+sd.S.toFixed(0));
       br.textContent=bits.join(' · ')||'—';
       box.appendChild(br);
       sides.appendChild(box);

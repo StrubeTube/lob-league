@@ -303,6 +303,33 @@ round_vor = {r: sum(v) / len(v) for r, v in round_vor_samples.items()}
 for r in range(15, 0, -1):
     round_vor[r] = max(round_vor[r], round_vor.get(r + 1, 0))
 
+# keeper-market layer (S): when a preseason (week-1) pickup gets KEPT that
+# season, the buyer banks a draft-day discount = keep slot minus that season's
+# national ADP (FFC), converted from draft slots to value points at the
+# league's own exchange rate (the pick value curve R1->R16 over its 150 slots)
+import re as _re
+
+
+def _norm_name(name):
+    n = _re.sub(r"[^a-z ]", "", (name or "").lower())
+    n = _re.sub(r"\b(jr|sr|ii|iii|iv|v)\b", "", n)
+    return _re.sub(r"\s+", " ", n).strip()
+
+
+try:
+    _adp_hist = load("ffc_adp_hist.json")
+except FileNotFoundError:
+    _adp_hist = {}
+ADP_BY_SEASON = {yr: {_norm_name(p.get("name")): p.get("adp")
+                      for p in (d.get("players") or [])}
+                 for yr, d in _adp_hist.items()}
+KEPT_AT = {}
+for s in SEASONS:
+    for p in load(f"draftpicks_{s}_{drafts_meta[s]['draft_id']}.json"):
+        if p.get("is_keeper"):
+            KEPT_AT[(s, str(p["player_id"]), p.get("roster_id"))] = p["round"]
+PTS_PER_SLOT = max(0.1, (round_vor.get(1, 0) - round_vor.get(16, 0)) / 150)
+
 # ---------- trades archive with model verdicts (+ activity counts) ----------
 trades_out = []
 activity = defaultdict(lambda: {"trades_n": 0, "adds_n": 0})
@@ -331,7 +358,7 @@ for s in SEASONS:
             for rid in t["roster_ids"]:
                 uid = ctx["rmap"][rid]
                 players, picks = [], []
-                P = A = K = 0.0
+                P = A = K = S = 0.0
                 for pid, to_rid in adds.items():
                     if to_rid != rid:
                         continue
@@ -349,6 +376,11 @@ for s in SEASONS:
                     # or an early-round pick with almost nothing before a mid-season trade
                     inj = (pre >= 60 and ros <= 15) or \
                           (rnd is not None and rnd <= 6 and wk >= 5 and pre <= 30)
+                    if wk == 1:
+                        kr = KEPT_AT.get((s, str(pid), rid))
+                        adp0 = (ADP_BY_SEASON.get(s) or {}).get(_norm_name(pname(pid)))
+                        if kr is not None and adp0:
+                            S += ((kr - 0.5) * 10 - adp0) * PTS_PER_SLOT
                     P += p_val
                     A += a_val
                     players.append({"p": pname(pid), "pts": round(ros, 1),
@@ -362,7 +394,8 @@ for s in SEASONS:
                     picks.append({"lab": f"{dp['season']} R{dp['round']}", "val": round(v, 1)})
                 sides.append({"name": oname(uid), "players": players, "picks": picks,
                               "P": round(P, 1), "A": round(A, 1), "K": round(K, 1),
-                              "total": round(P + A + K, 1)})
+                              "S": round(S, 1),
+                              "total": round(P + A + K + S, 1)})
             if len(sides) == 2 and any(sd["players"] or sd["picks"] for sd in sides):
                 diff = sides[0]["total"] - sides[1]["total"]
                 loser = None

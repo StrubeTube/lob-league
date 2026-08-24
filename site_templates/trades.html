@@ -29,6 +29,12 @@ __NAV__
     </div>
   </section>
 
+  <section id="mktSec" hidden>
+    <div class="sec-head"><div class="eyebrow">The keeper market</div><h2>What a keeper actually costs here</h2>
+    <p class="sec-note" id="mktNote"></p></div>
+    <div class="card scroll" id="mktTable"></div>
+  </section>
+
   <section>
     <div class="sec-head"><div class="eyebrow">The leaderboard</div><h2 id="statsTitle">Who actually wins trades</h2>
     <p class="sec-note">Net value across the deals matching the filters above. W = won by 50+, L = fleeced, E = fair fight.</p></div>
@@ -53,7 +59,7 @@ const sidePts=t=>t.sides.reduce((a,sd)=>a+sd.players.reduce((b,p)=>b+p.pts,0),0)
 const CAP26=(DATA.trades26||[]).slice().reverse().map(t=>({
   s:'2026',wk:t.date,cap:true,
   type:t.sides.some(sd=>sd.players.length)?'players':'picks',
-  diff:Math.abs(t.sides[0].sal-t.sides[1].sal),loser:null,inj:[],
+  diff:Math.abs(t.sides[0].sal-t.sides[1].sal),loser:null,inj:[],mk:t.mk||null,
   sides:t.sides.map(sd=>({name:sd.name,total:sd.sal,
     players:sd.players.map(p=>({p:p.n,pos:p.pos,val:p.sal,pts:0})),
     picks:sd.picks.map(pk=>({lab:pk.lab,val:pk.val,cur:pk.cur}))}))
@@ -61,6 +67,61 @@ const CAP26=(DATA.trades26||[]).slice().reverse().map(t=>({
 const ALL=DATA.trades.concat(CAP26);
 const seasons=[...new Set(ALL.map(t=>t.s))].sort().reverse();
 const teams=[...new Set(ALL.flatMap(t=>t.sides.map(sd=>sd.name)))].sort();
+
+/* keeper-market read on a current-season deal */
+function mkLine(m){
+  const div=$('div','mkline');
+  const bits=m.ks.map(k=>k.n+' keeps at R'+k.kr
+    +(k.adp!=null?(' · ADP '+k.adp+' \u2192 '+(k.surp>0?'+':'')+k.surp+' surplus'):' · no national ADP')
+    +(k.kset?(k.kept?' \ud83d\udd12':' · not among their locked keeps yet'):''));
+  let txt='\u2696 '+m.team+': '+bits.join(' · ');
+  if(m.pslots>0)txt+=' — paid R'+m.paid.join('+R')+' ('+m.pslots+' slots)';
+  div.appendChild(document.createTextNode(txt));
+  if(m.fair!=null){
+    const over=m.delta>35,under=m.delta<-35;
+    div.appendChild($('span','chip '+(over?'flag':(under?'ok':'even')),
+      over?(m.delta+' OVER MARKET'):(under?((-m.delta)+' UNDER MARKET'):'AT MARKET')));
+    div.appendChild($('span','mut small',' going rate for that surplus \u2248 '+m.fair+' slots'));
+  }
+  if(m.surp!=null&&DATA.market&&DATA.market.events){
+    const comps=DATA.market.events.filter(e=>e.surp!=null&&e.pslots>0)
+      .map(e=>({e,d:Math.abs(e.surp-m.surp)})).sort((a,b)=>a.d-b.d).slice(0,3);
+    if(comps.length)div.appendChild($('span','comps','closest comps: '+comps.map(({e})=>
+      e.ks.map(k=>k.n).join(' + ')+' ('+(e.surp>0?'+':'')+e.surp+' surplus) went for '
+      +(e.paid.length?('R'+e.paid.join('+R')):'no picks')+" in '"+String(e.s).slice(2)).join(' · ')));
+  }
+  return div;
+}
+
+/* the keeper market — every preseason deal where the traded player got kept */
+(function(){
+  const M=DATA.market;
+  if(!M||!M.events||!M.events.length)return;
+  document.getElementById('mktSec').hidden=false;
+  const fit=M.fit;
+  document.getElementById('mktNote').textContent=
+    'Every preseason trade in league history where the player acquired was KEPT that season: the round he was kept at, his national ADP at the time (FantasyFootballCalculator, half-PPR), the surplus that keep carried (keep slot \u2212 ADP, in draft slots), and the picks paid for him (draft-position slots, future years \u221215%/yr). '
+    +(fit?(fit.young
+      ?('Young market \u2014 too few deals to fit a price curve, so the going rate is the median price paid so far (\u2248'+Math.round(fit.a)+' slots).')
+      :('The going rate, fitted on '+fit.n+' deals: \u2248 '+fit.a+' slots + '+fit.b+' per surplus slot \u2014 over/under is measured against that line.')):'');
+  const tbl=$('table','tbl');
+  const hr=$('tr');['Season','Buyer','Keeper (kept at)','ADP','Surplus','Picks paid','Slots','vs market'].forEach(h=>hr.appendChild($('th',null,h)));
+  tbl.appendChild(hr);
+  M.events.forEach(e=>{
+    const r=$('tr');
+    r.appendChild($('td',null,e.s));
+    r.appendChild($('td',null,e.team));
+    r.appendChild($('td',null,e.ks.map(k=>k.n+' (R'+k.kr+')').join(', ')));
+    r.appendChild($('td',null,e.ks.map(k=>k.adp!=null?k.adp:'\u2014').join(', ')));
+    r.appendChild($('td',e.surp>0?'good':(e.surp<0?'bad':''),e.surp!=null?((e.surp>0?'+':'')+e.surp):'\u2014'));
+    r.appendChild($('td',null,e.paid.length?('R'+e.paid.join(' + R')):'\u2014'));
+    r.appendChild($('td',null,String(e.pslots||0)));
+    const d=e.delta;
+    r.appendChild($('td',d==null?'':(d>35?'bad':(d<-35?'good':'')),d==null?'\u2014':(d>0?('+'+d+' over'):(d<0?((-d)+' under'):'even'))));
+    tbl.appendChild(r);
+  });
+  document.getElementById('mktTable').appendChild(tbl);
+})();
 
 /* pick value chips */
 Object.entries(DATA.pickValues).forEach(([r,v])=>{
@@ -257,7 +318,7 @@ function render(){
   rows.forEach(t=>{
     const card=$('article','trade');
     const th=$('div','trade-head');
-    th.appendChild($('span','chip wk',t.cap?('2026 · '+t.wk):(t.s+' · WK '+t.wk)));
+    th.appendChild($('span','chip wk',t.cap?('2026 · '+t.wk):(t.s+(t.wk===1?' · preseason':' · WK '+t.wk))));
     th.appendChild($('span','chip even',t.type==='picks'?'PICK DEAL':'PLAYER DEAL'));
     if(t.cap){
       th.appendChild($('span','chip mini','CAP DEAL'));
@@ -310,6 +371,7 @@ function render(){
       sides.appendChild(box);
     });
     card.appendChild(sides);
+    if(t.cap&&t.mk)t.mk.forEach(m=>card.appendChild(mkLine(m)));
     host.appendChild(card);
   });
 }

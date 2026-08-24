@@ -49,6 +49,26 @@ for wk in range(1, 19):
     tx[str(wk)] = get(f"/league/{lid}/transactions/{wk}") or []
 save("transactions_2026.json", tx)
 
+# FantasyFootballCalculator ADP: current year daily (keeper-market reads on
+# this year's trades), past years once (static history). Never let an FFC
+# outage break the Sleeper refresh.
+def _ffc(year):
+    req = urllib.request.Request(
+        f"https://fantasyfootballcalculator.com/api/v1/adp/half-ppr?teams=10&year={year}",
+        headers={"User-Agent": "league-site/1.0 (personal fantasy league site)"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return json.loads(r.read().decode())
+
+try:
+    save("ffc_adp_2026.json", _ffc(2026))
+except Exception as e:
+    print(f"FFC current ADP unavailable ({e}) — keeping the cached file")
+if not os.path.exists(os.path.join(DATA, "ffc_adp_hist.json")):
+    try:
+        save("ffc_adp_hist.json", {str(y): _ffc(y) for y in range(2025, 2026)})
+    except Exception as e:
+        print(f"FFC ADP history unavailable ({e})")
+
 # once the draft has actually run, pull its picks (carries is_keeper flags)
 for d in drafts or []:
     if d.get("status") == "complete":

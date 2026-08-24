@@ -366,6 +366,9 @@ box-shadow:0 6px 18px rgba(0,0,0,.35);pointer-events:none}
 .flownode text{fill:var(--ink2);font-size:13px;font-weight:600;cursor:pointer}
 .flownode.off circle{fill:var(--line2);opacity:.6}
 .flownode.off text{opacity:.45}
+.mkline{font-size:11.5px;color:var(--ink2);border-top:1px dashed var(--line);margin-top:9px;padding-top:8px;line-height:1.9}
+.mkline .chip{margin-left:6px}
+.mkline .comps{display:block;color:var(--ink3);font-size:10.5px;line-height:1.5;margin-top:2px}
 .cdrows{display:grid;gap:9px;margin-top:6px}
 .cdrow{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:8px}
 .cdrow:last-child{border-bottom:none;padding-bottom:0}
@@ -581,22 +584,127 @@ def planner_teams():
     return teams
 
 
+def _norm_name(name):
+    import re
+    n = re.sub(r"[^a-z ]", "", (name or "").lower())
+    n = re.sub(r"\b(jr|sr|ii|iii|iv|v)\b", "", n)
+    return re.sub(r"\s+", " ", n).strip()
+
+
+_SLOT = lambda rd: (rd - 0.5) * 10
+_PSLOT = lambda rd, out: max(0.0, (16.5 - min(16, rd)) * 10) * (0.85 ** out)
+MARKET_SEASONS = ["2025"]
+
+
+def keeper_market():
+    """The league's own keeper price history: every preseason (week-1) trade
+    where the acquired player was KEPT that season — keep round, FFC ADP at
+    the time, surplus (cost slot − ADP), and pick-slots paid — plus the fitted
+    going rate (paid = a + b·surplus) that this year's deals are graded on."""
+    try:
+        hist_adp = load("ffc_adp_hist.json")
+    except FileNotFoundError:
+        hist_adp = {}
+    players_db = load("players_nfl.json")
+    events = []
+    for s in MARKET_SEASONS:
+        adp_map = {_norm_name(p.get("name")): p.get("adp")
+                   for p in (hist_adp.get(s) or {}).get("players") or []}
+        try:
+            dmeta = load(f"drafts_{s}.json")[0]
+            picks = load(f"draftpicks_{s}_{dmeta['draft_id']}.json")
+            tx = load(f"transactions_{s}.json")
+            users = {u["user_id"]: u["display_name"] for u in load(f"users_{s}.json")}
+            rosters = load(f"rosters_{s}.json")
+        except FileNotFoundError:
+            continue
+        rmap = {r["roster_id"]: users.get(r["owner_id"], "?") for r in rosters}
+        kept = {(str(p["player_id"]), p.get("roster_id")): p["round"]
+                for p in picks if p.get("is_keeper")}
+        for wk_s, items in tx.items():
+            if int(wk_s) != 1:
+                continue
+            for t in items or []:
+                if t.get("type") != "trade" or t.get("status") != "complete":
+                    continue
+                rids = t.get("roster_ids") or []
+                if len(rids) != 2:
+                    continue
+                adds = t.get("adds") or {}
+                dps = t.get("draft_picks") or []
+                for i, rid in enumerate(rids):
+                    other = rids[1 - i]
+                    paid = [(dp["round"], max(0, int(dp["season"]) - int(s)))
+                            for dp in dps if dp["owner_id"] == other]
+                    ks = []
+                    for pid, to in adds.items():
+                        if to != rid:
+                            continue
+                        kr = kept.get((str(pid), rid))
+                        if kr is None:
+                            continue
+                        nm = (players_db.get(str(pid)) or {}).get("name") or str(pid)
+                        a = adp_map.get(_norm_name(nm))
+                        ks.append({"n": nm, "kr": kr, "adp": round(a) if a else None,
+                                   "surp": round(_SLOT(kr) - a) if a else None})
+                    if not ks:
+                        continue
+                    surp = (sum(k["surp"] for k in ks)
+                            if all(k["surp"] is not None for k in ks) else None)
+                    events.append({"s": s, "team": rmap.get(rid, "?"), "ks": ks,
+                                   "paid": sorted(r for r, _ in paid),
+                                   "pslots": round(sum(_PSLOT(r, o) for r, o in paid)),
+                                   "surp": surp})
+    pts = [(e["surp"], e["pslots"]) for e in events
+           if e["surp"] is not None and e["pslots"] > 0]
+    fit = None
+    if len(pts) >= 8:
+        n = len(pts)
+        sx = sum(x for x, _ in pts); sy = sum(y for _, y in pts)
+        sxx = sum(x * x for x, _ in pts); sxy = sum(x * y for x, y in pts)
+        den = n * sxx - sx * sx
+        b = (n * sxy - sx * sy) / den if den else 0
+        if b > 0:
+            fit = {"a": round((sy - b * sx) / n, 1), "b": round(b, 2),
+                   "n": n, "young": False}
+    if fit is None and pts:
+        ys = sorted(y for _, y in pts)
+        fit = {"a": float(ys[len(ys) // 2]), "b": 0, "n": len(pts), "young": True}
+    if fit:
+        for e in events:
+            if e["surp"] is not None and e["pslots"] > 0:
+                e["fair"] = round(fit["a"] + fit["b"] * e["surp"])
+                e["delta"] = e["pslots"] - e["fair"]
+    events.sort(key=lambda e: -int(e["s"]))
+    return {"events": events, "fit": fit}
+
+
+MARKET = keeper_market()
+
+
 def trades_2026():
-    """This year's completed Sleeper trades, priced in cap dollars — the value
-    model can't grade a deal before the season provides stats."""
+    """This year's completed Sleeper trades, priced in cap dollars, with a
+    live keeper-market read (surplus vs picks paid vs the fitted going rate)."""
     import datetime
     try:
         tx = load("transactions_2026.json")
         users = {u["user_id"]: u["display_name"] for u in load("users_2026.json")}
-        name_of = {r["roster_id"]: users.get(r["owner_id"], "?")
-                   for r in load("rosters_2026.json")}
+        rosters = load("rosters_2026.json")
+        name_of = {r["roster_id"]: users.get(r["owner_id"], "?") for r in rosters}
     except FileNotFoundError:
         return []
+    ok_of = {r["roster_id"]: {str(p) for p in (r.get("keepers") or [])} for r in rosters}
     players_db = load("players_nfl.json")
     d25_id = load("drafts_2025.json")[0]["draft_id"]
     draft25 = load(f"draftpicks_2025_{d25_id}.json")
     dround = {str(p["player_id"]): p["round"] for p in draft25}
     kept25 = {str(p["player_id"]) for p in draft25 if p.get("is_keeper")}
+    try:
+        adp26 = {_norm_name(p.get("name")): p.get("adp")
+                 for p in (load("ffc_adp_2026.json").get("players") or [])}
+    except FileNotFoundError:
+        adp26 = {}
+    fit = (MARKET or {}).get("fit")
     deals = []
     for items in tx.values():
         for t in items or []:
@@ -627,8 +735,41 @@ def trades_2026():
             sides[rid]["picks"].append(
                 {"lab": f"{dp['season']} R{dp['round']}{via}", "val": val, "cur": cur})
             sides[rid]["sal"] += val
-        d = datetime.datetime.fromtimestamp(t["status_updated"] / 1000)
-        out.append({"date": f"{d.strftime('%b')} {d.day}", "sides": [sides[r] for r in rids]})
+        # the keeper-market read: each side that landed keeper-eligible players
+        mks = []
+        for i, rid in enumerate(rids):
+            other = rids[1 - i]
+            paid = [(dp["round"], max(0, int(dp["season"]) - 2026))
+                    for dp in t.get("draft_picks") or [] if dp["owner_id"] == other]
+            ks = []
+            for pid, to in (t.get("adds") or {}).items():
+                pid = str(pid)
+                if to != rid or dround.get(pid) is None:
+                    continue
+                kr = max(1, dround[pid] - (1 if pid in kept25 else 0))
+                nm = (players_db.get(pid) or {}).get("name") or pid
+                a = adp26.get(_norm_name(nm))
+                ks.append({"n": nm, "kr": kr, "adp": round(a) if a else None,
+                           "surp": round(_SLOT(kr) - a) if a else None,
+                           "kept": pid in ok_of.get(rid, set()),
+                           "kset": bool(ok_of.get(rid))})
+            if not ks:
+                continue
+            surp = (sum(k["surp"] for k in ks)
+                    if all(k["surp"] is not None for k in ks) else None)
+            mk = {"team": name_of.get(rid, "?"), "ks": ks,
+                  "paid": sorted(r for r, _ in paid),
+                  "pslots": round(sum(_PSLOT(r, o) for r, o in paid)), "surp": surp}
+            if fit and surp is not None and mk["pslots"] > 0:
+                mk["fair"] = round(fit["a"] + fit["b"] * surp)
+                mk["delta"] = mk["pslots"] - mk["fair"]
+            mks.append(mk)
+        entry = {"date": None, "sides": [sides[r] for r in rids]}
+        d = __import__("datetime").datetime.fromtimestamp(t["status_updated"] / 1000)
+        entry["date"] = f"{d.strftime('%b')} {d.day}"
+        if mks:
+            entry["mk"] = mks
+        out.append(entry)
     return out
 
 
@@ -753,7 +894,7 @@ slices = {
     "records.html": {"records": site["records"], "career": career},
     "drafts.html": {"drafts": site["drafts"]},
     "trades.html": {"trades": site["trades"], "pickValues": site["pick_values"],
-                    "trades26": trades_2026()},
+                    "trades26": trades_2026(), "market": MARKET},
     "lab.html": {"teams": planner_teams(), "adopted": CFG["table"],
                  "leagueId2026": lg26.get("league_id"),
                  "repo": "https://github.com/StrubeTube/lob-league",

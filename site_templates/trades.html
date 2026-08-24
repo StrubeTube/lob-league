@@ -4,13 +4,19 @@
 __NAV__
 <div class="wrap">
   <header class="hero">
-    <div class="eyebrow">GGG League &middot; 2024&ndash;2025 &middot; the value model</div>
+    <div class="eyebrow">GGG League &middot; 2024&ndash;2026 &middot; the value model</div>
     <h1>The Trade Archive</h1>
     <p class="lede">Every trade ever, scored by one number per side. <b>Value = position-adjusted points over replacement</b> (rest of season, on your roster — QB points count less because replacement QBs score more) <b>+ a 30% keeper premium</b> for producers drafted cheap <b>+ pick value</b> from six years of draft history, discounted 15% per year until the pick conveys. A side is FLEECED at a 50+ value deficit.</p>
     <details class="tbl-details"><summary class="mut">What's a pick worth under this model?</summary>
       <div class="pickchips" id="pickVals" style="margin-top:10px"></div>
     </details>
   </header>
+
+  <section id="ledger26" hidden>
+    <div class="sec-head"><div class="eyebrow">This year</div><h2>The 2026 ledger</h2>
+    <p class="sec-note">Deals made in the current league, straight from Sleeper &mdash; priced in <b>cap dollars</b> (keep salaries + pick values), because the value model can&rsquo;t grade a trade before the season provides stats. These join the archive, the leaderboard, and the rivalry board once real production is on the books.</p></div>
+    <div class="trades" id="trades26"></div>
+  </section>
 
   <section>
     <div class="filterrow" id="typefilters"></div>
@@ -55,6 +61,48 @@ Object.entries(DATA.pickValues).forEach(([r,v])=>{
   const c=$('span','pk','R'+r);c.appendChild($('span','frm',' '+v.toFixed(0)+' val'));
   document.getElementById('pickVals').appendChild(c);
 });
+
+/* the 2026 ledger — this year's deals, priced in cap dollars */
+if((DATA.trades26||[]).length){
+  document.getElementById('ledger26').hidden=false;
+  const host=document.getElementById('trades26');
+  DATA.trades26.forEach(t=>{
+    const card=$('article','trade');
+    const th=$('div','trade-head');
+    th.appendChild($('span','chip wk','2026 \u00b7 '+t.date));
+    th.appendChild($('span','chip mini','CAP DEAL'));
+    th.appendChild($('span','chip even','ungraded \u2014 season not started'));
+    card.appendChild(th);
+    const sides=$('div','trade-sides');
+    t.sides.forEach(sd=>{
+      const box=$('div','side');
+      const sh=$('div','side-head');
+      sh.appendChild($('span','side-team',sd.name));
+      const val=$('span','side-cap');
+      val.appendChild($('b',null,'gets $'+sd.sal+' of salary'));
+      sh.appendChild(val);
+      box.appendChild(sh);
+      const g=$('div','gets');
+      sd.players.forEach(p=>{
+        const pc=$('span','pchip');
+        pc.appendChild(document.createTextNode(p.n));
+        pc.appendChild($('span','s',p.pos+' \u00b7 '+(p.sal?('$'+p.sal+' keep salary'):'waiver \u2014 $0')));
+        g.appendChild(pc);
+      });
+      sd.picks.forEach(pk=>{
+        const pc=$('span','pchip pick');
+        pc.appendChild(document.createTextNode(pk.lab+' pick'));
+        pc.appendChild($('span','s',pk.cur?('$'+pk.val):'future \u2014 $0 this year'));
+        g.appendChild(pc);
+      });
+      if(!sd.players.length&&!sd.picks.length)g.appendChild($('span','pchip none','received nothing'));
+      box.appendChild(g);
+      sides.appendChild(box);
+    });
+    card.appendChild(sides);
+    host.appendChild(card);
+  });
+}
 
 /* leaderboard — reacts to the filters */
 function renderStats(trades){

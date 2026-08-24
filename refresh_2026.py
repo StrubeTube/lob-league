@@ -43,6 +43,12 @@ drafts = get(f"/league/{lid}/drafts")
 save("drafts_2026.json", drafts)
 save("tradedpicks_2026.json", get(f"/league/{lid}/traded_picks"))
 
+# every 2026 transaction (trades live here; offseason deals sit in week 1)
+tx = {}
+for wk in range(1, 19):
+    tx[str(wk)] = get(f"/league/{lid}/transactions/{wk}") or []
+save("transactions_2026.json", tx)
+
 # once the draft has actually run, pull its picks (carries is_keeper flags)
 for d in drafts or []:
     if d.get("status") == "complete":

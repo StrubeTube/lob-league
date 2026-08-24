@@ -590,6 +590,57 @@ def planner_teams():
     return teams
 
 
+def trades_2026():
+    """This year's completed Sleeper trades, priced in cap dollars — the value
+    model can't grade a deal before the season provides stats."""
+    import datetime
+    try:
+        tx = load("transactions_2026.json")
+        users = {u["user_id"]: u["display_name"] for u in load("users_2026.json")}
+        name_of = {r["roster_id"]: users.get(r["owner_id"], "?")
+                   for r in load("rosters_2026.json")}
+    except FileNotFoundError:
+        return []
+    players_db = load("players_nfl.json")
+    d25_id = load("drafts_2025.json")[0]["draft_id"]
+    draft25 = load(f"draftpicks_2025_{d25_id}.json")
+    dround = {str(p["player_id"]): p["round"] for p in draft25}
+    kept25 = {str(p["player_id"]) for p in draft25 if p.get("is_keeper")}
+    deals = []
+    for items in tx.values():
+        for t in items or []:
+            if (t.get("type") == "trade" and t.get("status") == "complete"
+                    and len(t.get("roster_ids") or []) == 2):
+                deals.append(t)
+    deals.sort(key=lambda t: t["status_updated"], reverse=True)
+    out = []
+    for t in deals:
+        rids = t["roster_ids"]
+        sides = {rid: {"name": name_of.get(rid, "?"), "players": [], "picks": [], "sal": 0}
+                 for rid in rids}
+        for pid, rid in (t.get("adds") or {}).items():
+            pid = str(pid)
+            pdb = players_db.get(pid) or {}
+            rnd = dround.get(pid)
+            sal = escalate(rnd, 1 if pid in kept25 else 0) if rnd else 0
+            sides[rid]["players"].append(
+                {"n": pdb.get("name") or f"?{pid}", "pos": pdb.get("pos") or "?", "sal": sal})
+            sides[rid]["sal"] += sal
+        for dp in t.get("draft_picks") or []:
+            rid = dp["owner_id"]
+            if rid not in sides:
+                continue
+            cur = dp["season"] == "2026"
+            val = CFG["table"][dp["round"]] if cur else 0
+            via = f" via {name_of.get(dp['roster_id'], '?')}" if dp["roster_id"] not in rids else ""
+            sides[rid]["picks"].append(
+                {"lab": f"{dp['season']} R{dp['round']}{via}", "val": val, "cur": cur})
+            sides[rid]["sal"] += val
+        d = datetime.datetime.fromtimestamp(t["status_updated"] / 1000)
+        out.append({"date": f"{d.strftime('%b')} {d.day}", "sides": [sides[r] for r in rids]})
+    return out
+
+
 # League-confirmed corrections to the fire-sale heuristic, keyed
 # (season, week, a moved player) -> corrected tag. None yet for LOB.
 FIRE_FIXES = {}
@@ -710,7 +761,8 @@ slices = {
     "history.html": {"seasons": site["seasons"], "career": career, "h2h": site["h2h"]},
     "records.html": {"records": site["records"], "career": career},
     "drafts.html": {"drafts": site["drafts"]},
-    "trades.html": {"trades": site["trades"], "pickValues": site["pick_values"]},
+    "trades.html": {"trades": site["trades"], "pickValues": site["pick_values"],
+                    "trades26": trades_2026()},
     "lab.html": {"teams": planner_teams(), "adopted": CFG["table"],
                  "leagueId2026": lg26.get("league_id"),
                  "repo": "https://github.com/StrubeTube/lob-league",

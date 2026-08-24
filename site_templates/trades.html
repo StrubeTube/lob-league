@@ -103,13 +103,14 @@ function mkLine(m){
     'Every preseason trade in league history where the player acquired was KEPT that season: the round he was kept at, his national ADP at the time (FantasyFootballCalculator, half-PPR), the surplus that keep carried (keep slot \u2212 ADP, in draft slots), and the picks paid for him (draft-position slots, future years \u221215%/yr). '
     +(fit?(fit.young
       ?('Young market \u2014 too few deals to fit a price curve, so the going rate is the median price paid so far (\u2248'+Math.round(fit.a)+' slots).')
-      :('The going rate, fitted on '+fit.n+' deals: \u2248 '+fit.a+' slots + '+fit.b+' per surplus slot \u2014 over/under is measured against that line.')):'');
+      :('The going rate, fitted on '+fit.n+' deals: \u2248 '+fit.a+' slots + '+fit.b+' per surplus slot \u2014 over/under is measured against that line.')):'')
+    +(M.events.some(e=>e.prov)?' 2026 rows (\u2217) are provisional \u2014 built from official Sleeper keepers, final once the draft locks \u2014 and do not feed the fitted rate.':'');
   const tbl=$('table','tbl');
   const hr=$('tr');['Season','Buyer','Keeper (kept at)','ADP','Surplus','Picks paid','Slots','vs market'].forEach(h=>hr.appendChild($('th',null,h)));
   tbl.appendChild(hr);
   M.events.forEach(e=>{
     const r=$('tr');
-    r.appendChild($('td',null,e.s));
+    r.appendChild($('td',null,e.s+(e.prov?' \u2217':'')));
     r.appendChild($('td',null,e.team));
     r.appendChild($('td',null,e.ks.map(k=>k.n+' (R'+k.kr+')').join(', ')));
     r.appendChild($('td',null,e.ks.map(k=>k.adp!=null?k.adp:'\u2014').join(', ')));

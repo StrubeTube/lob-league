@@ -655,8 +655,56 @@ def keeper_market():
                                    "paid": sorted(r for r, _ in paid),
                                    "pslots": round(sum(_PSLOT(r, o) for r, o in paid)),
                                    "surp": surp})
+    # 2026, pre-draft: provisional events — "kept" = among the acquirer's
+    # OFFICIAL Sleeper keepers (locks at the draft); excluded from the fit so
+    # this year's deals are graded against history, never against themselves
+    if "2026" not in MARKET_SEASONS:
+        try:
+            tx26 = load("transactions_2026.json")
+            users26 = {u["user_id"]: u["display_name"] for u in load("users_2026.json")}
+            rosters26 = load("rosters_2026.json")
+            d25_id = load("drafts_2025.json")[0]["draft_id"]
+            draft25 = load(f"draftpicks_2025_{d25_id}.json")
+            adp26 = {_norm_name(p.get("name")): p.get("adp")
+                     for p in (load("ffc_adp_2026.json").get("players") or [])}
+        except FileNotFoundError:
+            tx26 = None
+        if tx26:
+            rmap26 = {r["roster_id"]: users26.get(r["owner_id"], "?") for r in rosters26}
+            ok26 = {r["roster_id"]: {str(p) for p in (r.get("keepers") or [])} for r in rosters26}
+            dr26 = {str(p["player_id"]): p["round"] for p in draft25}
+            kp26 = {str(p["player_id"]) for p in draft25 if p.get("is_keeper")}
+            for items in tx26.values():
+                for t in items or []:
+                    if t.get("type") != "trade" or t.get("status") != "complete":
+                        continue
+                    rids = t.get("roster_ids") or []
+                    if len(rids) != 2:
+                        continue
+                    for i, rid in enumerate(rids):
+                        other = rids[1 - i]
+                        paid = [(dp["round"], max(0, int(dp["season"]) - 2026))
+                                for dp in t.get("draft_picks") or [] if dp["owner_id"] == other]
+                        ks = []
+                        for pid, to in (t.get("adds") or {}).items():
+                            pid = str(pid)
+                            if to != rid or pid not in ok26.get(rid, set()) or dr26.get(pid) is None:
+                                continue
+                            kr = max(1, dr26[pid] - (1 if pid in kp26 else 0))
+                            nm = (players_db.get(pid) or {}).get("name") or pid
+                            a = adp26.get(_norm_name(nm))
+                            ks.append({"n": nm, "kr": kr, "adp": round(a) if a else None,
+                                       "surp": round(_SLOT(kr) - a) if a else None})
+                        if not ks:
+                            continue
+                        surp = (sum(k["surp"] for k in ks)
+                                if all(k["surp"] is not None for k in ks) else None)
+                        events.append({"s": "2026", "team": rmap26.get(rid, "?"), "ks": ks,
+                                       "paid": sorted(r for r, _ in paid),
+                                       "pslots": round(sum(_PSLOT(r, o) for r, o in paid)),
+                                       "surp": surp, "prov": True})
     pts = [(e["surp"], e["pslots"]) for e in events
-           if e["surp"] is not None and e["pslots"] > 0]
+           if e["surp"] is not None and e["pslots"] > 0 and not e.get("prov")]
     fit = None
     if len(pts) >= 8:
         n = len(pts)

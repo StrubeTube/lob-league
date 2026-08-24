@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <title>LOB League — Trade Archive</title>
-<script>try{if(!localStorage.getItem('lob-pitch-v2'))location.replace('pitch.html');}catch(e){}</script><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="stylesheet" href="ggg.css?v=25669768">
+<script>try{if(!localStorage.getItem('lob-pitch-v2'))location.replace('pitch.html');}catch(e){}</script><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="stylesheet" href="ggg.css?v=f41c7b12">
 <nav class="ggg"><div class="in"><span class="logo">LOB</span><div class="navgrp newg"><span class="navcap">New · your team</span><div class="navlinks"><a href="index.html" class="">Home</a><a href="analyzer.html" class="">Trade Tester</a></div></div><div class="navgrp histg"><span class="navcap">League history</span><div class="navlinks"><a href="history.html" class="">History</a><a href="records.html" class="">Records</a><a href="drafts.html" class="">Drafts</a><a href="trades.html" class="on">Trades</a></div></div><a href="pitch.html" class="pitchtab">🗳️ The Proposal</a><a href="lab.html" class="labtab">⚙️ Commish tools</a></div></nav>
 <div class="wrap">
   <header class="hero">
@@ -12,12 +12,6 @@
     </details>
   </header>
 
-  <section id="ledger26" hidden>
-    <div class="sec-head"><div class="eyebrow">This year</div><h2>The 2026 ledger</h2>
-    <p class="sec-note">Deals made in the current league, straight from Sleeper &mdash; priced in <b>cap dollars</b> (keep salaries + pick values), because the value model can&rsquo;t grade a trade before the season provides stats. These join the archive, the leaderboard, and the rivalry board once real production is on the books.</p></div>
-    <div class="trades" id="trades26"></div>
-  </section>
-
   <section>
     <div class="filterrow" id="typefilters"></div>
     <div class="filterrow" id="injfilters"></div>
@@ -27,10 +21,11 @@
   </section>
 
   <section>
-    <div class="sec-head"><div class="eyebrow">The rivalry board</div><h2>Who deals with whom &mdash; and who&rsquo;s winning the rivalry</h2>
-    <p class="sec-note">Every trading pair is a tug-of-war. The bar pulls toward the team that&rsquo;s <b>up on total value</b> across their deals &mdash; <b>longer = more lopsided</b>, <b>thicker = more deals</b> between them. A dot on the dashed center line means the rivalry is about even. It reacts to the filters above.</p></div>
+    <div class="sec-head"><div class="eyebrow">The trade circle</div><h2>Who deals with whom &mdash; and which way the value flows</h2>
+    <p class="sec-note"><b>Circle size = trades made</b> &mdash; the number inside counts them. Each strand joins two trade partners, and it runs <b>thin and <span class="bad">red</span> at the losing end, thick and <span class="good">green</span> at the winning end</b> &mdash; the value flows toward the fat green side. Gray strands are about even. <b>Tap a circle to hide that manager</b>; everyone left resizes and the web declutters. Tap a strand for its numbers. Reacts to the filters above &mdash; graded deals only.</p></div>
     <div class="card">
       <div class="flowwrap" id="flowwrap"></div>
+      <p class="cardnote2" id="flowinfo"></p>
     </div>
   </section>
 
@@ -53,56 +48,25 @@ const $ = (t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!==
 let sfilter='all', tfilter='all', yfilter='all', ifilter='all', sorter='new';
 const sideTotal=t=>t.sides[0].total+t.sides[1].total;
 const sidePts=t=>t.sides.reduce((a,sd)=>a+sd.players.reduce((b,p)=>b+p.pts,0),0);
-const seasons=[...new Set(DATA.trades.map(t=>t.s))].sort().reverse();
-const teams=[...new Set(DATA.trades.flatMap(t=>t.sides.map(sd=>sd.name)))].sort();
+/* this year's Sleeper deals, priced in cap dollars, folded into the archive
+   list (t.cap=true) — ungraded until the season provides stats */
+const CAP26=(DATA.trades26||[]).slice().reverse().map(t=>({
+  s:'2026',wk:t.date,cap:true,
+  type:t.sides.some(sd=>sd.players.length)?'players':'picks',
+  diff:Math.abs(t.sides[0].sal-t.sides[1].sal),loser:null,inj:[],
+  sides:t.sides.map(sd=>({name:sd.name,total:sd.sal,
+    players:sd.players.map(p=>({p:p.n,pos:p.pos,val:p.sal,pts:0})),
+    picks:sd.picks.map(pk=>({lab:pk.lab,val:pk.val,cur:pk.cur}))}))
+}));
+const ALL=DATA.trades.concat(CAP26);
+const seasons=[...new Set(ALL.map(t=>t.s))].sort().reverse();
+const teams=[...new Set(ALL.flatMap(t=>t.sides.map(sd=>sd.name)))].sort();
 
 /* pick value chips */
 Object.entries(DATA.pickValues).forEach(([r,v])=>{
   const c=$('span','pk','R'+r);c.appendChild($('span','frm',' '+v.toFixed(0)+' val'));
   document.getElementById('pickVals').appendChild(c);
 });
-
-/* the 2026 ledger — this year's deals, priced in cap dollars */
-if((DATA.trades26||[]).length){
-  document.getElementById('ledger26').hidden=false;
-  const host=document.getElementById('trades26');
-  DATA.trades26.forEach(t=>{
-    const card=$('article','trade');
-    const th=$('div','trade-head');
-    th.appendChild($('span','chip wk','2026 \u00b7 '+t.date));
-    th.appendChild($('span','chip mini','CAP DEAL'));
-    th.appendChild($('span','chip even','ungraded \u2014 season not started'));
-    card.appendChild(th);
-    const sides=$('div','trade-sides');
-    t.sides.forEach(sd=>{
-      const box=$('div','side');
-      const sh=$('div','side-head');
-      sh.appendChild($('span','side-team',sd.name));
-      const val=$('span','side-cap');
-      val.appendChild($('b',null,'gets $'+sd.sal+' of salary'));
-      sh.appendChild(val);
-      box.appendChild(sh);
-      const g=$('div','gets');
-      sd.players.forEach(p=>{
-        const pc=$('span','pchip');
-        pc.appendChild(document.createTextNode(p.n));
-        pc.appendChild($('span','s',p.pos+' \u00b7 '+(p.sal?('$'+p.sal+' keep salary'):'waiver \u2014 $0')));
-        g.appendChild(pc);
-      });
-      sd.picks.forEach(pk=>{
-        const pc=$('span','pchip pick');
-        pc.appendChild(document.createTextNode(pk.lab+' pick'));
-        pc.appendChild($('span','s',pk.cur?('$'+pk.val):'future \u2014 $0 this year'));
-        g.appendChild(pc);
-      });
-      if(!sd.players.length&&!sd.picks.length)g.appendChild($('span','pchip none','received nothing'));
-      box.appendChild(g);
-      sides.appendChild(box);
-    });
-    card.appendChild(sides);
-    host.appendChild(card);
-  });
-}
 
 /* leaderboard — reacts to the filters */
 function renderStats(trades){
@@ -137,66 +101,120 @@ function renderStats(trades){
   host.appendChild(tbl);
 }
 
-/* ---------- the rivalry board: every trading pair as a tug-of-war ---------- */
-let rivSort='deals';
+/* ---------- the trade circle: sized, toggleable nodes; tapered value strands ---------- */
+const SVGNS='http://www.w3.org/2000/svg';
+const sv=(t,at)=>{const e=document.createElementNS(SVGNS,t);for(const k in at)e.setAttribute(k,at[k]);return e;};
+const FLOWHINT='Tap a circle to hide that manager \u00b7 tap a strand for its numbers \u00b7 tap empty space to reset the highlight.';
+let gradSeq=0, flowOff=new Set();
+function qpt(P1,C,P2,t){
+  const mt=1-t;
+  const x=mt*mt*P1.x+2*mt*t*C.x+t*t*P2.x, y=mt*mt*P1.y+2*mt*t*C.y+t*t*P2.y;
+  const dx=2*mt*(C.x-P1.x)+2*t*(P2.x-C.x), dy=2*mt*(C.y-P1.y)+2*t*(P2.y-C.y);
+  const L=Math.hypot(dx,dy)||1;
+  return {x,y,nx:-dy/L,ny:dx/L};
+}
+/* a band along the curve whose width grows from w1 (at P1) to w2 (at P2) */
+function ribbon(P1,C,P2,w1,w2){
+  const n=24,up=[],dn=[];
+  for(let i=0;i<=n;i++){
+    const t=i/n,q=qpt(P1,C,P2,t),w=(w1+(w2-w1)*t)/2;
+    up.push((q.x+q.nx*w).toFixed(1)+' '+(q.y+q.ny*w).toFixed(1));
+    dn.push((q.x-q.nx*w).toFixed(1)+' '+(q.y-q.ny*w).toFixed(1));
+  }
+  return 'M'+up.join(' L')+' L'+dn.reverse().join(' L')+' Z';
+}
 function renderFlow(trades){
   const host=document.getElementById('flowwrap');host.textContent='';
-  if(!trades.length){host.appendChild($('p','mut','No trades match these filters.'));return;}
-  const pairs={};
+  const info=document.getElementById('flowinfo');
+  if(!trades.length||teams.length<2){host.appendChild($('p','mut','No graded trades match these filters.'));info.textContent='';return;}
+  const idx={};teams.forEach((n,i)=>idx[n]=i);
+  const act=n=>!flowOff.has(n);
+  /* pairs + per-team volume, counting only trades where BOTH sides are visible
+     — so hiding managers makes everyone left resize */
+  const pairs={},vol={};teams.forEach(n=>vol[n]=0);
   trades.forEach(t=>{
     const [x,y]=t.sides;
+    if(!act(x.name)||!act(y.name))return;
     const [a,b]=[x.name,y.name].sort();
     const p=pairs[a+'|'+b]=pairs[a+'|'+b]||{a,b,deals:0,net:0};
-    p.deals++;
-    p.net+=(x.name===a?x.total-y.total:y.total-x.total);   /* + = value flowed to a */
+    p.deals++;p.net+=(x.name===a?x.total-y.total:y.total-x.total);
+    vol[x.name]++;vol[y.name]++;
   });
   const list=Object.values(pairs);
-  list.sort(rivSort==='deals'
-    ?((u,v)=>v.deals-u.deals||Math.abs(v.net)-Math.abs(u.net))
-    :((u,v)=>Math.abs(v.net)-Math.abs(u.net)||v.deals-u.deals));
-  const fr=$('div','filterrow tight');
-  [['deals','Most deals first'],['net','Most lopsided first']].forEach(([k,lab])=>{
-    const b=$('button','tpill sm'+(rivSort===k?' active':''),lab);b.type='button';
-    b.addEventListener('click',()=>{rivSort=k;render();});
-    fr.appendChild(b);
-  });
-  host.appendChild(fr);
-  const maxNet=Math.max(25,...list.map(p=>Math.abs(p.net)));
-  const EVEN=25;   /* |net| under 25 value = call the rivalry even */
+  if(flowOff.size){
+    const fr=$('div','filterrow tight');
+    const rp=$('button','tpill sm','Show everyone ('+flowOff.size+' hidden)');rp.type='button';
+    rp.addEventListener('click',()=>{flowOff.clear();render();});
+    fr.appendChild(rp);host.appendChild(fr);
+  }
+  const W=760,H=620,cx=W/2,cy=H/2,R=Math.min(W,H)/2-86;
+  const svg=sv('svg',{viewBox:'0 0 '+W+' '+H,'class':'tradeweb'});
+  const defs=sv('defs',{});svg.appendChild(defs);
+  const pos=teams.map((n,i)=>{const ang=-Math.PI/2+i*2*Math.PI/teams.length;
+    return {ang,x:cx+R*Math.cos(ang),y:cy+R*Math.sin(ang)};});
+  const maxVol=Math.max(1,...teams.map(n=>vol[n]));
+  const maxDeals=Math.max(1,...list.map(p=>p.deals));
+  const rOf=n=>act(n)?(vol[n]?(11+Math.sqrt(vol[n]/maxVol)*17):8):6;
+  const EVEN=25;
   list.forEach(p=>{
+    const P1=pos[idx[p.a]],P2=pos[idx[p.b]];
+    const C={x:cx+((P1.x+P2.x)/2-cx)*0.35,y:cy+((P1.y+P2.y)/2-cy)*0.35};
+    const base=3.5+(p.deals/maxDeals)*12;
     const even=Math.abs(p.net)<EVEN;
     const aWins=p.net>0;
-    const row=$('div','rivrow');
-    const name=(n,side,winner,loser)=>{
-      const d=$('div','rivname '+side+(winner?' win':'')+(loser?' lose':''));
-      d.appendChild($('b',null,n));
-      if(winner)d.appendChild($('span','rivval','+'+Math.abs(p.net).toFixed(0)));
-      return d;
-    };
-    row.appendChild(name(p.a,'ra',!even&&aWins,!even&&!aWins));
-    const tr=$('div','rivtrack');
-    tr.appendChild($('div','rivmid'));
-    const h=7+Math.min(11,p.deals*2.2);
-    if(even){
-      const dot=$('div','rivdot');dot.style.width=dot.style.height=h+'px';
-      tr.appendChild(dot);
-    }else{
-      const bar=$('div','rivbar'+(aWins?' left':''));
-      bar.style.height=h+'px';
-      bar.style.width=Math.max(4,Math.abs(p.net)/maxNet*46)+'%';
-      tr.appendChild(bar);
+    /* thin red at the loser, thick green at the winner — the taper IS the arrow */
+    const wA=even?base:(aWins?base*1.7:base*0.45);
+    const wB=even?base:(aWins?base*0.45:base*1.7);
+    const path=sv('path',{d:ribbon(P1,C,P2,wA,wB),'class':'flowedge','data-a':p.a,'data-b':p.b});
+    if(even)path.style.fill='var(--ink3)';
+    else{
+      const id='fg'+(gradSeq++);
+      const g=sv('linearGradient',{id,gradientUnits:'userSpaceOnUse',x1:P1.x,y1:P1.y,x2:P2.x,y2:P2.y});
+      const s1=sv('stop',{offset:'0%'}),s2=sv('stop',{offset:'100%'});
+      s1.style.stopColor=aWins?'var(--mint)':'var(--coral)';
+      s2.style.stopColor=aWins?'var(--coral)':'var(--mint)';
+      g.appendChild(s1);g.appendChild(s2);defs.appendChild(g);
+      path.style.fill='url(#'+id+')';
     }
-    row.appendChild(tr);
-    row.appendChild(name(p.b,'rb',!even&&!aWins,!even&&aWins));
-    const dc=$('div','rivdeals');
-    dc.appendChild($('b',null,String(p.deals)));
-    dc.appendChild(document.createTextNode(p.deals===1?' deal':' deals'));
-    row.appendChild(dc);
-    row.title=p.a+' \u2194 '+p.b+' \u00b7 '+p.deals+' deal'+(p.deals===1?'':'s')+' \u00b7 '
+    const lab=p.a+' \u2194 '+p.b+' \u00b7 '+p.deals+' deal'+(p.deals===1?'':'s')+' \u00b7 '
       +(even?('about even (net '+Math.abs(p.net).toFixed(0)+')')
-        :('net '+Math.abs(p.net).toFixed(0)+' value to '+(aWins?p.a:p.b)));
-    host.appendChild(row);
+        :('net '+Math.abs(p.net).toFixed(0)+' value flows to '+(aWins?p.a:p.b)));
+    const tt=sv('title',{});tt.textContent=lab;path.appendChild(tt);
+    path.addEventListener('click',e=>{e.stopPropagation();info.textContent=lab;
+      [...svg.querySelectorAll('.flowedge')].forEach(el=>el.classList.toggle('faded',el!==path));});
+    svg.appendChild(path);
   });
+  teams.forEach((n,i)=>{
+    const P=pos[i],on=act(n),r=rOf(n);
+    const g=sv('g',{'class':'flownode'+(on?'':' off'),'data-n':n});
+    g.appendChild(sv('circle',{cx:P.x,cy:P.y,r:r.toFixed(1)}));
+    if(on&&vol[n]){
+      const num=sv('text',{x:P.x,y:P.y+4.5,'text-anchor':'middle','class':'ncount'});
+      num.textContent=vol[n];g.appendChild(num);
+    }
+    const co=Math.cos(P.ang),si=Math.sin(P.ang);
+    const t=sv('text',{x:cx+(R+34)*co,y:cy+(R+34)*si+(si>0.5?12:(si<-0.5?-6:4)),
+      'text-anchor':co>0.25?'start':(co<-0.25?'end':'middle')});
+    t.textContent=(n.length>16?(n.slice(0,15)+'\u2026'):n)+(on?'':' \u2715');
+    g.appendChild(t);
+    let d2=0,net=0;
+    trades.forEach(tr=>{
+      const [x,y]=tr.sides;
+      if(!act(x.name)||!act(y.name))return;
+      tr.sides.forEach((sd,k)=>{if(sd.name===n){d2++;net+=sd.total-tr.sides[1-k].total;}});
+    });
+    const tt=sv('title',{});
+    tt.textContent=on?(n+' \u00b7 '+d2+' deal'+(d2===1?'':'s')+' shown \u00b7 net '+(net>0?'+':'')+net.toFixed(0)+' value \u00b7 tap to hide')
+                    :(n+' \u2014 hidden \u00b7 tap to bring back');
+    g.appendChild(tt);
+    g.addEventListener('click',e=>{e.stopPropagation();
+      flowOff.has(n)?flowOff.delete(n):flowOff.add(n);render();});
+    svg.appendChild(g);
+  });
+  svg.addEventListener('click',()=>{info.textContent=FLOWHINT;
+    [...svg.querySelectorAll('.flowedge')].forEach(el=>el.classList.remove('faded'));});
+  host.appendChild(svg);
+  info.textContent=FLOWHINT;
 }
 
 function pills(hostId,options,get,set){
@@ -209,10 +227,10 @@ function pills(hostId,options,get,set){
 }
 
 function render(){
-  const nPl=DATA.trades.filter(t=>t.type==='players').length;
-  const nPk=DATA.trades.filter(t=>t.type==='picks').length;
-  const nInj=DATA.trades.filter(t=>t.inj&&t.inj.length).length;
-  pills('typefilters',[['all','All deals ('+DATA.trades.length+')'],['players','Player-for-player ('+nPl+')'],['picks','Pick deals ('+nPk+')']],()=>yfilter,k=>yfilter=k);
+  const nPl=ALL.filter(t=>t.type==='players').length;
+  const nPk=ALL.filter(t=>t.type==='picks').length;
+  const nInj=ALL.filter(t=>t.inj&&t.inj.length).length;
+  pills('typefilters',[['all','All deals ('+ALL.length+')'],['players','Player-for-player ('+nPl+')'],['picks','Pick deals ('+nPk+')']],()=>yfilter,k=>yfilter=k);
   pills('injfilters',[['all','Any injury status'],['inj','🚑 Injury-affected ('+nInj+')'],['clean','Clean deals']],()=>ifilter,k=>ifilter=k);
   pills('sorters',[['new','Newest first'],['old','Oldest first'],['gap','Biggest value gap'],['value','Most total value'],['points','Most points moved']],()=>sorter,k=>sorter=k);
   pills('filters',[['all','All seasons'],...seasons.map(s=>[s,s])],()=>sfilter,k=>sfilter=k);
@@ -220,12 +238,13 @@ function render(){
 
   const host=document.getElementById('trades');
   host.textContent='';
-  let rows=DATA.trades.filter(t=>(yfilter==='all'||t.type===yfilter)
+  let rows=ALL.filter(t=>(yfilter==='all'||t.type===yfilter)
     &&(sfilter==='all'||t.s===sfilter)
     &&(tfilter==='all'||t.sides.some(sd=>sd.name===tfilter))
     &&(ifilter==='all'||(ifilter==='inj'?(t.inj&&t.inj.length):!(t.inj&&t.inj.length))));
-  renderStats(rows);
-  renderFlow(rows);
+  const graded=rows.filter(t=>!t.cap);
+  renderStats(graded);
+  renderFlow(graded);
   if(sorter==='new')rows=[...rows].reverse();
   else if(sorter==='gap')rows=[...rows].sort((a,b)=>b.diff-a.diff);
   else if(sorter==='value')rows=[...rows].sort((a,b)=>sideTotal(b)-sideTotal(a));
@@ -233,17 +252,22 @@ function render(){
   rows.forEach(t=>{
     const card=$('article','trade');
     const th=$('div','trade-head');
-    th.appendChild($('span','chip wk',t.s+' · WK '+t.wk));
+    th.appendChild($('span','chip wk',t.cap?('2026 · '+t.wk):(t.s+' · WK '+t.wk)));
     th.appendChild($('span','chip even',t.type==='picks'?'PICK DEAL':'PLAYER DEAL'));
-    if(t.inj&&t.inj.length){
-      const ic=$('span','chip inj','🚑 LIKELY INJURY-AFFECTED');
-      ic.title=t.inj.join(', ');
-      th.appendChild(ic);
-    }
-    if(t.loser){
-      th.appendChild($('span','chip flag','FLEECED: '+t.loser+' (−'+t.diff.toFixed(0)+' value)'));
+    if(t.cap){
+      th.appendChild($('span','chip mini','CAP DEAL'));
+      th.appendChild($('span','chip even','ungraded until the season starts'));
     }else{
-      th.appendChild($('span','chip even','FAIR FIGHT'));
+      if(t.inj&&t.inj.length){
+        const ic=$('span','chip inj','🚑 LIKELY INJURY-AFFECTED');
+        ic.title=t.inj.join(', ');
+        th.appendChild(ic);
+      }
+      if(t.loser){
+        th.appendChild($('span','chip flag','FLEECED: '+t.loser+' (−'+t.diff.toFixed(0)+' value)'));
+      }else{
+        th.appendChild($('span','chip even','FAIR FIGHT'));
+      }
     }
     card.appendChild(th);
     const sides=$('div','trade-sides');
@@ -252,26 +276,27 @@ function render(){
       const sh=$('div','side-head');
       sh.appendChild($('span','side-team',sd.name));
       const val=$('span','side-cap');
-      val.appendChild($('b',null,sd.total.toFixed(0)+' value'));
+      val.appendChild($('b',null,t.cap?('gets $'+sd.total+' of salary'):(sd.total.toFixed(0)+' value')));
       sh.appendChild(val);
       box.appendChild(sh);
       const g=$('div','gets');
       sd.players.forEach(p=>{
         const pc=$('span','pchip');
         pc.appendChild(document.createTextNode((p.inj?'🚑 ':'')+p.p));
-        pc.appendChild($('span','s',p.val.toFixed(0)+' val · '+p.pts.toFixed(0)+' pts'));
+        pc.appendChild($('span','s',t.cap?(p.pos+' · '+(p.val?('$'+p.val+' keep salary'):'waiver — $0')):(p.val.toFixed(0)+' val · '+p.pts.toFixed(0)+' pts')));
         g.appendChild(pc);
       });
       sd.picks.forEach(pk=>{
         const pc=$('span','pchip pick');
         pc.appendChild(document.createTextNode(pk.lab));
-        pc.appendChild($('span','s',pk.val.toFixed(0)+' val'));
+        pc.appendChild($('span','s',t.cap?(pk.cur?('$'+pk.val):'future — $0 this year'):(pk.val.toFixed(0)+' val')));
         g.appendChild(pc);
       });
       if(!sd.players.length&&!sd.picks.length)g.appendChild($('span','pchip none','received nothing'));
       box.appendChild(g);
       const br=$('div','valbreak');
       const bits=[];
+      if(t.cap)bits.push('cap dollars — the value model grades this once the season starts');
       if(sd.P)bits.push('production '+sd.P.toFixed(0));
       if(sd.A)bits.push('keeper premium '+sd.A.toFixed(0));
       if(sd.K)bits.push('picks '+sd.K.toFixed(0));

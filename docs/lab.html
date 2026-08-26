@@ -120,7 +120,7 @@ function evalLab(ti){
   chosen.forEach(pi=>{const p=tm.players[pi];if(p.el)keepSpend+=escal(p.r,p.kp?1:0);});
   const k=chosen.size;
   let capDraft=0;
-  tm.picks.slice(0,16).forEach(p=>capDraft+=TABLE[p.r]);   // keepers occupy their round's pick
+  tm.picks.forEach(p=>capDraft+=TABLE[p.r]);   // every held pick counts; keepers occupy their round's pick
   return {k,keepSpend,capDraft,opening:capDraft,
           overBudget:k>3&&keepSpend>S.budget,overCount:k>5};
 }

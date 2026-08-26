@@ -72,13 +72,14 @@ function evalTeam(ti){
   const k=chosen.size;
   let draftSpend=0,fills=0,usedPicks=0,opening=0;
   if(SLOT==='round'){
-    const picks16=tm.picks.slice(0,16);
-    picks16.forEach(p=>draftSpend+=TABLE[p.r]);   // keepers occupy their round's pick
+    /* EVERY held pick counts against the cap — 16 is the roster limit,
+       not a cap exemption; surplus picks still carry their salary */
+    tm.picks.forEach(p=>draftSpend+=TABLE[p.r]);   // keepers occupy their round's pick
     if(KCAP==='off'){
       let kr=0;chosen.forEach(pi=>{const p=tm.players[pi];if(p.el)kr+=TABLE[p.r];});
       draftSpend=Math.max(0,draftSpend-kr);
     }
-    usedPicks=picks16.length;
+    usedPicks=tm.picks.length;
     opening=draftSpend;
   }else{
     const picks=tm.picks.slice();
@@ -152,7 +153,7 @@ function renderIdentity(){
    next earlier free pick (covers traded-away rounds AND two keeps colliding
    on the same round). Returns {picks16, asg: playerIndex -> pick item}. */
 function assignKeeps(tm,chosen){
-  const picks16=tm.picks.slice(0,16).map(p=>({type:'pick',r:p.r,from:p.from,cost:TABLE[p.r],name:null,pi:null}));
+  const picks16=tm.picks.map(p=>({type:'pick',r:p.r,from:p.from,cost:TABLE[p.r],name:null,pi:null}));
   const asg={};
   [...chosen].map(pi=>({pi,p:tm.players[pi]})).filter(x=>x.p.el)
     .sort((a,b)=>b.p.k26-a.p.k26)
@@ -241,9 +242,8 @@ function capDetail(ti){
   if(sentVal)m+=' − $'+sentVal+' traded away';
   if(gainedVal)m+=' + $'+gainedVal+' acquired';
   const n=tm.picks.length;
-  const adj=ev.opening-(BASE16-sentVal+gainedVal);
-  if(n>16)m+=(adj?(' − $'+(-adj)):'')+' (holds '+n+' picks — only the first 16 count)';
   m+=' = $'+ev.opening;
+  if(n>16)m+=' · holds '+n+' picks — every pick counts against the cap, but only 16 make the roster';
   if(n<16)m+=' · only '+n+' picks — the last '+(16-n)+' roster spot'+(16-n===1?'':'s')+' fill with $0 waivers';
   box.appendChild($('p','cardnote2',m));
 
@@ -452,7 +452,7 @@ function capBoardCard(span){
   if(cbYear!=='2026'){
     cb.appendChild($('p','cardnote2','2027 draft capital only — each team’s held 2027 picks priced by the salary table. Keeper costs can’t exist yet; this is the floor each roster starts from.'));
     const rows=DATA.teams.map(tm=>{
-      const picks=tm.p27.slice(0,16);
+      const picks=tm.p27;
       return {name:tm.name,held:tm.p27.length,val:picks.reduce((a,p)=>a+TABLE[p.r],0),
               acquired:tm.p27.filter(p=>p.from).length};
     }).sort((a,b)=>b.val-a.val);

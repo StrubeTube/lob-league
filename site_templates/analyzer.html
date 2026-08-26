@@ -56,9 +56,9 @@ rn.appendChild($('span','chip '+(labOn?'gold':'even'),(labOn?'⚗️ Lab rules a
 /* 2026 keeper price — one round up from the drafted round, same as the Home
    keeper corner (baked as k26 by the build); waiver adds are $0 */
 const price=p=>p.el?p.k26:0;
-/* team baseline = projected 2026 opening from the 16 held picks — the exact
-   number the Home cap board shows */
-const openOf=ti=>DATA.teams[ti].picks.slice(0,16).reduce((a,p)=>a+TABLE[p.r],0);
+/* team baseline = projected 2026 opening from EVERY held pick (16 is the
+   roster limit, not a cap exemption) — the exact number the Home cap board shows */
+const openOf=ti=>DATA.teams[ti].picks.reduce((a,p)=>a+TABLE[p.r],0);
 
 let ta=0,tb=1,outA=new Set(),outB=new Set();
 

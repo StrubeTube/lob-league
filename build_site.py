@@ -777,7 +777,7 @@ def trades_2026():
     for items in tx.values():
         for t in items or []:
             if (t.get("type") == "trade" and t.get("status") == "complete"
-                    and len(t.get("roster_ids") or []) == 2
+                    and len(t.get("roster_ids") or []) >= 2
                     and str(t.get("transaction_id")) not in REVERTED_TX):
                 deals.append(t)
     deals.sort(key=lambda t: t["status_updated"], reverse=True)
@@ -805,8 +805,9 @@ def trades_2026():
                 {"lab": f"{dp['season']} R{dp['round']}{via}", "val": val, "cur": cur})
             sides[rid]["sal"] += val
         # the keeper-market read: each side that landed keeper-eligible players
+        # (pairwise only — a 3-way has no single "other side" to price against)
         mks = []
-        for i, rid in enumerate(rids):
+        for i, rid in enumerate(rids if len(rids) == 2 else []):
             other = rids[1 - i]
             paid = [(dp["round"], max(0, int(dp["season"]) - 2026))
                     for dp in t.get("draft_picks") or [] if dp["owner_id"] == other]

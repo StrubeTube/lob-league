@@ -52,14 +52,14 @@ const DATA = {"trades": [{"s": "2024", "wk": 3, "type": "players", "sides": [{"n
 const $ = (t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e;};
 
 let sfilter='all', tfilter='all', yfilter='all', ifilter='all', sorter='new';
-const sideTotal=t=>t.sides[0].total+t.sides[1].total;
+const sideTotal=t=>t.sides.reduce((a,sd)=>a+sd.total,0);
 const sidePts=t=>t.sides.reduce((a,sd)=>a+sd.players.reduce((b,p)=>b+p.pts,0),0);
 /* this year's Sleeper deals, priced in cap dollars, folded into the archive
    list (t.cap=true) — ungraded until the season provides stats */
 const CAP26=(DATA.trades26||[]).slice().reverse().map(t=>({
   s:'2026',wk:t.date,cap:true,
   type:t.sides.some(sd=>sd.players.length)?'players':'picks',
-  diff:Math.abs(t.sides[0].sal-t.sides[1].sal),loser:null,inj:[],mk:t.mk||null,
+  diff:Math.max(...t.sides.map(x=>x.sal))-Math.min(...t.sides.map(x=>x.sal)),loser:null,inj:[],mk:t.mk||null,
   sides:t.sides.map(sd=>({name:sd.name,total:sd.sal,
     players:sd.players.map(p=>({p:p.n,pos:p.pos,val:p.sal,pts:0})),
     picks:sd.picks.map(pk=>({lab:pk.lab,val:pk.val,cur:pk.cur}))}))

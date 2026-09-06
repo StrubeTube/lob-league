@@ -648,6 +648,8 @@ def keeper_market():
                             for dp in dps if dp["owner_id"] == other]
                     got = [(dp["round"], max(0, int(dp["season"]) - int(s)))
                            for dp in dps if dp["owner_id"] == rid]
+                    if any(to == other for to in adds.values()):
+                        continue   # buyer also paid with players — pick price alone misleads
                     ks = []
                     for pid, to in adds.items():
                         if to != rid:
@@ -702,6 +704,8 @@ def keeper_market():
                                 for dp in t.get("draft_picks") or [] if dp["owner_id"] == other]
                         got = [(dp["round"], max(0, int(dp["season"]) - 2026))
                                for dp in t.get("draft_picks") or [] if dp["owner_id"] == rid]
+                        if any(to == other for to in (t.get("adds") or {}).values()):
+                            continue   # buyer also paid with players
                         ks = []
                         for pid, to in (t.get("adds") or {}).items():
                             pid = str(pid)
@@ -813,6 +817,8 @@ def trades_2026():
                     for dp in t.get("draft_picks") or [] if dp["owner_id"] == other]
             got = [(dp["round"], max(0, int(dp["season"]) - 2026))
                    for dp in t.get("draft_picks") or [] if dp["owner_id"] == rid]
+            if any(to == other for to in (t.get("adds") or {}).values()):
+                continue   # buyer also paid with players — no pick-only read
             ks = []
             for pid, to in (t.get("adds") or {}).items():
                 pid = str(pid)

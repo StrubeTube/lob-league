@@ -111,7 +111,7 @@ function mkLine(m){
       ?('Young market \u2014 too few deals to fit a price curve, so the going rate is the median price paid so far (\u2248'+Math.round(fit.a)+' slots).')
       :('The going rate, fitted on '+fit.n+' deals: \u2248 '+fit.a+' slots + '+fit.b+' per surplus slot \u2014 over/under is measured against that line.')):'')
     +(rows.some(e=>e.prov)?' 2026 rows (\u2217) are provisional \u2014 built from official Sleeper keepers, final once the draft locks \u2014 and do not feed the fitted rate.':'')
-    +' Deals the line can\u2019t grade (no ADP, or no net picks paid) are hidden. Click a column header to sort.';
+    +' Deals where the buyer also sent players away are excluded \u2014 a pick-only price on a deal partly paid in players would mislead. Deals the line can\u2019t grade (no ADP, or no net picks paid) are hidden. Click a column header to sort.';
   const COLS=[
     ['s','Season',e=>+e.s],
     ['team','Buyer',e=>e.team.toLowerCase()],

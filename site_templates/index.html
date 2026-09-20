@@ -41,7 +41,6 @@ let myTeam=parseInt(localStorage.getItem(MYKEY) ?? '-1');
    here on every visit (no picking keepers on this site anymore) */
 let OFFICIAL={};
 DATA.teams.forEach((tm,ti)=>{if(tm.ok&&tm.ok.length)OFFICIAL[ti]=tm.ok;});
-try{const c=JSON.parse(localStorage.getItem('ggg-okeep-v1'));if(c&&c.map)OFFICIAL=c.map;}catch(e){}
 const sel=ti=>new Set((OFFICIAL[ti]||[]).slice(0,CFG.maxKeep));
 async function syncSleeper(){
   if(!DATA.leagueId2026)return null;
@@ -57,6 +56,7 @@ async function syncSleeper(){
     });
     if(idx.length)map[ti]=idx;
   });
+  if(!Object.keys(map).length)return null;   /* post-draft Sleeper clears keepers — keep the baked draft record */
   OFFICIAL=map;
   try{localStorage.setItem('ggg-okeep-v1',JSON.stringify({ts:Date.now(),map}));}catch(e){}
   return map;

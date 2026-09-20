@@ -520,8 +520,15 @@ def escalate(round_2025, steps):
 
 def planner_teams():
     players_db = load("players_nfl.json")
-    users = {u["user_id"]: u for u in load("users_2025.json")}
-    rosters = load("rosters_2025.json")
+    # in-season: franchises come from the CURRENT rosters (post-draft), so
+    # traded keepers sit with the team that kept them; keeper PRICING still
+    # keys off the 2025 draft below
+    try:
+        users = {u["user_id"]: u for u in load("users_2026.json")}
+        rosters = load("rosters_2026.json")
+    except FileNotFoundError:
+        users = {u["user_id"]: u for u in load("users_2025.json")}
+        rosters = load("rosters_2025.json")
     d25_id = load("drafts_2025.json")[0]["draft_id"]
     draft25 = load(f"draftpicks_2025_{d25_id}.json")
     draft_round = {str(p["player_id"]): p["round"] for p in draft25}
@@ -560,6 +567,15 @@ def planner_teams():
             official[r["roster_id"]] = {str(p) for p in (r.get("keepers") or [])}
     except FileNotFoundError:
         pass
+    # post-draft, Sleeper clears roster keepers — the draft's is_keeper rows
+    # are the permanent record; merge both sources
+    try:
+        did26 = load("drafts_2026.json")[0]["draft_id"]
+        for p in load(f"draftpicks_2026_{did26}.json"):
+            if p.get("is_keeper"):
+                official.setdefault(p["roster_id"], set()).add(str(p["player_id"]))
+    except (FileNotFoundError, IndexError, KeyError):
+        pass
     teams = []
     for r in sorted(rosters, key=lambda x: x["roster_id"]):
         plist = []
@@ -593,7 +609,7 @@ def _norm_name(name):
 
 _SLOT = lambda rd: (rd - 0.5) * 10
 _PSLOT = lambda rd, out: max(0.0, (16.5 - min(16, rd)) * 10) * (0.85 ** out)
-MARKET_SEASONS = ["2025"]
+MARKET_SEASONS = ["2025", "2026"]
 
 
 # Commissioner-confirmed 2026 keeps that aren't locked in Sleeper yet
@@ -618,8 +634,14 @@ def keeper_market():
     players_db = load("players_nfl.json")
     events = []
     for s in MARKET_SEASONS:
+        _src = hist_adp.get(s) or {}
+        if s == "2026" and not _src:
+            try:
+                _src = load("ffc_adp_2026.json")
+            except FileNotFoundError:
+                _src = {}
         adp_map = {_norm_name(p.get("name")): p.get("adp")
-                   for p in (hist_adp.get(s) or {}).get("players") or []}
+                   for p in _src.get("players") or []}
         try:
             dmeta = load(f"drafts_{s}.json")[0]
             picks = load(f"draftpicks_{s}_{dmeta['draft_id']}.json")
@@ -765,17 +787,28 @@ def trades_2026():
         name_of = {r["roster_id"]: users.get(r["owner_id"], "?") for r in rosters}
     except FileNotFoundError:
         return []
-    ok_of = {r["roster_id"]: {str(p) for p in (r.get("keepers") or [])} for r in rosters}
+    official = {r["roster_id"]: {str(p) for p in (r.get("keepers") or [])} for r in rosters}
+    # post-draft, Sleeper clears roster keepers — the draft's is_keeper rows
+    # are the permanent record; merge both sources
+    try:
+        did26 = load("drafts_2026.json")[0]["draft_id"]
+        for p in load(f"draftpicks_2026_{did26}.json"):
+            if p.get("is_keeper"):
+                official.setdefault(p["roster_id"], set()).add(str(p["player_id"]))
+    except (FileNotFoundError, IndexError, KeyError):
+        pass
+    ok_of = official
     players_db = load("players_nfl.json")
     d25_id = load("drafts_2025.json")[0]["draft_id"]
     draft25 = load(f"draftpicks_2025_{d25_id}.json")
     dround = {str(p["player_id"]): p["round"] for p in draft25}
     kept25 = {str(p["player_id"]) for p in draft25 if p.get("is_keeper")}
     try:
-        adp26 = {_norm_name(p.get("name")): p.get("adp")
-                 for p in (load("ffc_adp_2026.json").get("players") or [])}
+        _a26 = load("ffc_adp_hist.json").get("2026") or load("ffc_adp_2026.json")
     except FileNotFoundError:
-        adp26 = {}
+        _a26 = {}
+    adp26 = {_norm_name(p.get("name")): p.get("adp")
+             for p in (_a26.get("players") or [])}
     fit = (MARKET or {}).get("fit")
     deals = []
     for items in tx.values():

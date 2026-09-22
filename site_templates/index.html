@@ -62,37 +62,19 @@ async function syncSleeper(){
   return map;
 }
 
+/* IN-SEASON: team salary = every rostered player's 2026 draft salary summed
+   (waiver adds $0; salary rides with a player through trades) */
 function evalTeam(ti){
-  const tm=DATA.teams[ti],chosen=sel(ti);
-  let keepSpend=0,maxSel=0,franchiseName=null;
-  chosen.forEach(pi=>{const p=tm.players[pi];keepSpend+=p.k26;
-    if(p.k26>maxSel){maxSel=p.k26;franchiseName=p.n;}});
-  const budgetSpend=(CFG.franchise&&chosen.size)?keepSpend-maxSel:keepSpend;
-  let next27=0;chosen.forEach(pi=>next27+=tm.players[pi].k27);
-  const k=chosen.size;
-  let draftSpend=0,fills=0,usedPicks=0,opening=0;
-  if(SLOT==='round'){
-    /* EVERY held pick counts against the cap — 16 is the roster limit,
-       not a cap exemption; surplus picks still carry their salary */
-    tm.picks.forEach(p=>draftSpend+=TABLE[p.r]);   // keepers occupy their round's pick
-    if(KCAP==='off'){
-      let kr=0;chosen.forEach(pi=>{const p=tm.players[pi];if(p.el)kr+=TABLE[p.r];});
-      draftSpend=Math.max(0,draftSpend-kr);
-    }
-    usedPicks=tm.picks.length;
-    opening=draftSpend;
-  }else{
-    const picks=tm.picks.slice();
-    picks.splice(Math.max(0,picks.length-k),k);
-    const slots=16-k,used=picks.slice(0,slots);
-    used.forEach(p=>draftSpend+=TABLE[p.r]);
-    fills=Math.max(0,slots-used.length);
-    usedPicks=used.length;
-    opening=(KCAP==='off'?0:keepSpend)+draftSpend+fills*CFG.waiver;
-  }
-  return {keepSpend,budgetSpend,franchiseName,next27,k,draftSpend,fills,usedPicks,opening};
+  const tm=DATA.teams[ti],ok=sel(ti);
+  let keepSpend=0,opening=0,nSal=0,waiv=0;
+  tm.players.forEach((p,pi)=>{
+    const s2=p.sal||0;opening+=s2;
+    if(s2)nSal++;else waiv++;
+    if(ok.has(pi))keepSpend+=s2;
+  });
+  return {keepSpend,k:ok.size,draftSpend:opening-keepSpend,opening,nSal,waiv,fills:0,usedPicks:nSal};
 }
-const capital=ti=>DATA.teams[ti].picks.reduce((a,p)=>a+TABLE[p.r],0);
+const capital=ti=>DATA.teams[ti].p27.reduce((a,p)=>a+TABLE[p.r],0);
 
 /* ---------- helpers ---------- */
 function card(span,title,chipTxt){
@@ -148,48 +130,28 @@ function renderIdentity(){
   host.appendChild(band);
 }
 
-/* assign the chosen keepers to the team's held picks — the shared rule:
-   priciest keep first, exact keep round if that pick is free, otherwise the
-   next earlier free pick (covers traded-away rounds AND two keeps colliding
-   on the same round). Returns {picks16, asg: playerIndex -> pick item}. */
-function assignKeeps(tm,chosen){
-  const picks16=tm.picks.map(p=>({type:'pick',r:p.r,from:p.from,cost:TABLE[p.r],name:null,pi:null}));
-  const asg={};
-  [...chosen].map(pi=>({pi,p:tm.players[pi]})).filter(x=>x.p.el)
-    .sort((a,b)=>b.p.k26-a.p.k26)
-    .forEach(({pi,p})=>{
-      const it=picks16.find(x=>x.pi===null&&x.r===p.kr26)
-        ||[...picks16].reverse().find(x=>x.pi===null&&x.r<=p.kr26)
-        ||picks16.find(x=>x.pi===null);
-      if(it){it.pi=pi;asg[pi]=it;}
-    });
-  return {picks16,asg};
-}
-
-/* ---------- per-team cap breakdown (expands under a cap-board row) ---------- */
-const BASE16=(()=>{let s=0;for(let r=1;r<=16;r++)s+=TABLE[r];return s;})();
+/* ---------- per-team cap sheet (expands under a cap-board row) ---------- */
 let cbOpen=myTeam>=0?myTeam:-1;   /* one open breakdown at a time */
 
 function capDetail(ti){
-  const tm=DATA.teams[ti],ev=evalTeam(ti),chosen=sel(ti);
+  const tm=DATA.teams[ti],ev=evalTeam(ti),ok=sel(ti);
   const box=$('div','cbdetail');
 
-  /* the anatomy bar: every 2026 pick priced, keepers sitting in their rounds */
-  const {picks16,asg}=assignKeeps(tm,chosen);
-  Object.entries(asg).forEach(([pi,it])=>{it.type='keeper';it.name=tm.players[pi].n;});
-  const items=[...picks16].sort((a,b)=>b.cost-a.cost);
+  /* the salary bar: every salaried player on the roster, biggest hit first */
+  const items=tm.players.map((p,pi)=>({p,pi,cost:p.sal||0,keep:ok.has(pi)}))
+    .filter(x=>x.cost>0).sort((a,b)=>b.cost-a.cost);
   const scale=Math.max(isFinite(CFG.cap)?CFG.cap+30:0,ev.opening+15,(CFG.floor||0)+40,280);
   const wrap=$('div','anatwrap');
   const bar=$('div','anatbar');
   const tip=$('div','anattip');tip.hidden=true;
   let acc=0;
   items.forEach(it=>{
-    if(it.cost<=0)return;
-    const seg=$('div','anatseg '+(it.type==='keeper'?'k':'d'));
+    const seg=$('div','anatseg '+(it.keep?'k':'d'));
     const pct=it.cost/scale*100;
     seg.style.width=pct+'%';
-    const lab=(it.type==='keeper'?it.name:'R'+it.r)+' · $'+it.cost;
-    const full=lab+(it.type==='pick'?(' pick'+(it.from?' via '+it.from:'')):' — keeper');
+    const lab=it.p.n+' · $'+it.cost;
+    const full=lab+' — '+it.p.pos+(it.p.t?' '+it.p.t:'')
+      +(it.keep?(' · keeper (R'+it.p.dr+')'):(' · drafted R'+it.p.dr));
     seg.title=full;
     if(it.cost/scale>=0.022)seg.appendChild($('span',null,lab));
     const center=Math.min(92,Math.max(8,acc+pct/2));
@@ -215,62 +177,33 @@ function capDetail(ti){
   /* totals line */
   const tot=$('div','anattotal');
   const d2=CFG.cap-ev.opening;
-  tot.appendChild($('b',ev.opening>CFG.cap?'bad':'','Opening cap $'+ev.opening));
+  tot.appendChild($('b',ev.opening>CFG.cap?'bad':'','Team salary $'+ev.opening));
   let txt=isFinite(CFG.cap)?(d2>=0?(' — $'+d2+' under the cap'):(' — $'+(-d2)+' OVER the cap')):' — no cap set';
   if(CFG.floor>0)txt+=ev.opening>=CFG.floor?(' · $'+(ev.opening-CFG.floor)+' above the floor'):(' · $'+(CFG.floor-ev.opening)+' BELOW the floor');
   tot.appendChild(document.createTextNode(txt));
   box.appendChild(tot);
+  box.appendChild($('p','cardnote2','$'+ev.keepSpend+' of keeper salary + $'+ev.draftSpend+' of draft-day salary'
+    +(ev.waiv?(' · '+ev.waiv+' waiver pickup'+(ev.waiv===1?'':'s')+' at $0'):'')
+    +' — salary rides with a player through trades; drops send it off the books.'));
 
-  /* why: the trade ledger — every pick gained and sent, priced */
-  const gained=tm.picks.filter(p=>p.from);
-  const ownHeld=new Set(tm.picks.filter(p=>!p.from).map(p=>p.r));
-  const sent=[];
-  for(let r=1;r<=16;r++)if(!ownHeld.has(r)){
-    let to=null;
-    DATA.teams.forEach(t2=>{if(t2!==tm&&t2.picks.some(q=>q.from===tm.name&&q.r===r))to=t2.name;});
-    sent.push({r,to});
-  }
-  box.appendChild($('div','mlabel','Why $'+ev.opening+'? The pick trades'));
-  const lr=$('div','chiprow');
-  gained.forEach(p=>lr.appendChild($('span','chip ok','+ R'+p.r+' via '+p.from+' (+$'+TABLE[p.r]+')')));
-  sent.forEach(s2=>lr.appendChild($('span','chip flag','− R'+s2.r+(s2.to?(' to '+s2.to):'')+' (−$'+TABLE[s2.r]+')')));
-  if(!gained.length&&!sent.length)lr.appendChild($('span','chip even','No pick trades — a clean 16-round sheet'));
-  box.appendChild(lr);
-  const gainedVal=gained.reduce((a,p)=>a+TABLE[p.r],0);
-  const sentVal=sent.reduce((a,s2)=>a+TABLE[s2.r],0);
-  let m='$'+BASE16+' (all 16 own rounds)';
-  if(sentVal)m+=' − $'+sentVal+' traded away';
-  if(gainedVal)m+=' + $'+gainedVal+' acquired';
-  const n=tm.picks.length;
-  m+=' = $'+ev.opening;
-  if(n>16)m+=' · holds '+n+' picks — every pick counts against the cap, but only 16 make the roster';
-  if(n<16)m+=' · only '+n+' picks — the last '+(16-n)+' roster spot'+(16-n===1?'':'s')+' fill with $0 waivers';
-  box.appendChild($('p','cardnote2',m));
-
-  /* the keepers, straight from Sleeper */
-  box.appendChild($('div','mlabel','Keepers'+(chosen.size?(' — 🔒 '+chosen.size+' official from Sleeper'):'')));
-  if(chosen.size){
+  /* the keepers, locked at the draft */
+  const kept=[...ok].map(pi=>({pi,p:tm.players[pi]})).filter(x=>x.p);
+  if(kept.length){
+    box.appendChild($('div','mlabel','Keepers — locked at the 2026 draft'));
     const kl=$('div','klist');
-    [...chosen].map(pi=>({pi,p:tm.players[pi]})).filter(x=>x.p.el)
-      .sort((a,b)=>b.p.k26-a.p.k26)
-      .forEach(({pi,p})=>{
-        const row=$('div','kchip');
-        const im=document.createElement('img');im.className='pshot';im.alt='';im.loading='lazy';
-        im.src='https://sleepercdn.com/content/nfl/players/'+p.pid+'.jpg';
-        im.onerror=function(){this.style.visibility='hidden';};
-        row.appendChild(im);
-        row.appendChild($('b',null,p.n));
-        const it=asg[pi];
-        row.appendChild($('span','meta',p.pos+(p.t?' · '+p.t:'')+' · R'+(it?it.r:p.kr26)+' · $'+p.k26+(p.kp?' · kept ’25':'')));
-        if(it&&it.r!==p.kr26){
-          const noPick=!tm.picks.some(x=>x.r===p.kr26);
-          row.appendChild($('span','meta bad','⚠ R'+p.kr26+(noPick?' pick traded away':' taken by a pricier keep')+' — slots at R'+it.r));
-        }
-        kl.appendChild(row);
-      });
+    kept.sort((a,b)=>(b.p.sal||0)-(a.p.sal||0)).forEach(({p})=>{
+      const row=$('div','kchip');
+      const im=document.createElement('img');im.className='pshot';im.alt='';im.loading='lazy';
+      im.src='https://sleepercdn.com/content/nfl/players/'+p.pid+'.jpg';
+      im.onerror=function(){this.style.visibility='hidden';};
+      row.appendChild(im);
+      row.appendChild($('b',null,p.n));
+      const n27=Math.max(1,(p.dr||16)-1);
+      row.appendChild($('span','meta',p.pos+(p.t?' · '+p.t:'')+' · kept R'+p.dr+' · $'+(p.sal||0)
+        +' · keeps \u201927 at R'+n27+' ($'+TABLE[n27]+')'));
+      kl.appendChild(row);
+    });
     box.appendChild(kl);
-  }else{
-    box.appendChild($('p','mut small','No official keepers in Sleeper yet — once they lock in, they appear here and slot into these picks automatically (solid segments).'));
   }
   return box;
 }
@@ -314,9 +247,11 @@ function renderDash(){
   const EVENTS=[['NFL kickoff',new Date('2026-09-10T20:20:00-04:00')]];
   const dTo=d3=>Math.max(0,Math.ceil((d3-Date.now())/86400000));
   const fmt=d3=>d3.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-  const nxt=EVENTS.find(([,d3])=>d3>Date.now())||EVENTS[EVENTS.length-1];
+  const FUT=EVENTS.filter(([,d3])=>d3>Date.now());
+  const nxt=FUT[0]||EVENTS[EVENTS.length-1];
   const rows=$('div','cdrows');
-  EVENTS.forEach(([n2,d3])=>{
+  if(!FUT.length)rows.appendChild($('p','mut small','The season is live \ud83c\udfc8 — next stop, the 2027 offseason.'));
+  FUT.forEach(([n2,d3])=>{
     const r=$('div','cdrow');
     const left=$('div');
     left.appendChild($('div','cdlab',n2));
@@ -336,7 +271,7 @@ function renderDash(){
   dash.appendChild(cd);
 
   /* --- draft capital (span 3) --- */
-  const dc=card(3,'2026 draft capital');
+  const dc=card(3,'2027 draft capital');
   const cap$=capital(myTeam);
   const ranks=DATA.teams.map((_,i)=>capital(i)).sort((a,b)=>b-a);
   const myRank=ranks.indexOf(cap$)+1;
@@ -344,7 +279,7 @@ function renderDash(){
   bn2.appendChild($('small',null,' · #'+myRank+' in league'));
   dc.appendChild(bn2);
   const pcs=$('div','pickchips');
-  tm.picks.forEach(p=>{const ch=$('span','pk','R'+p.r);if(p.from)ch.appendChild($('span','frm',' · '+p.from));pcs.appendChild(ch);});
+  tm.p27.forEach(p=>{const ch=$('span','pk','R'+p.r);if(p.from)ch.appendChild($('span','frm',' · '+p.from));pcs.appendChild(ch);});
   dc.appendChild(pcs);
   dash.appendChild(dc);
 
@@ -486,9 +421,7 @@ function capBoardCard(span){
     fr.appendChild(b);
   });
   cb.appendChild(fr);
-  let allNote=KCAP==='off'
-    ?'Cap total (keepers are cap-exempt — governed by the budget). '
-    :'Opening cap by source — solid = keepers, faded = draft picks. ';
+  let allNote='Current team salary — solid = keepers, faded = drafted players. ';
   allNote+=isFinite(CFG.cap)?('Red dashed line = '+CAPTXT+' cap'):'No cap set';
   if(CFG.floor>0){
     allNote+='; gold dashed line = the $'+CFG.floor+' floor — trades can’t leave a roster '
@@ -497,8 +430,8 @@ function capBoardCard(span){
     allNote+='.';
   }
   const notes={all:allNote,
-               k:'Keeper salary only — each team’s 3 keeps priced at their keep round.',
-               d:'Draft-round salary only, from the picks each team holds for 2026.'};
+               k:'Keeper salary only — what each team\u2019s keeps cost at the draft.',
+               d:'Non-keeper salary — drafted players still on the roster.'};
   cb.appendChild($('p','cardnote2',notes[cbFilter]));
   const scale=cbFilter==='k'?120:250;
   const capLine=cbFilter==='d'||cbFilter==='k'?null:(isFinite(CFG.cap)?CFG.cap:null);
@@ -521,10 +454,7 @@ function capBoardCard(span){
     row.appendChild(nm);
     const track=$('div','cbtrack');
     let x=0;
-    /* round-slot: keeper salaries live INSIDE the pick total — carve them out
-       of the draft segment instead of stacking on top (no double counting) */
-    const kseg=Math.min(r.ev.keepSpend,r.ev.draftSpend);
-    const segs=cbFilter==='all'?[['k',kseg],['d',r.ev.draftSpend-kseg],['f',r.ev.fills*CFG.waiver]]
+    const segs=cbFilter==='all'?[['k',r.ev.keepSpend],['d',r.ev.draftSpend]]
       :(cbFilter==='k'?[['k',r.ev.keepSpend]]:[['d',r.ev.draftSpend]]);
     segs.forEach(([cls,v])=>{
       if(v<=0)return;
@@ -539,15 +469,15 @@ function capBoardCard(span){
     const over=cbFilter==='all'&&r.val>CFG.cap;
     val.appendChild($('b',over?'bad':'','$'+r.val));
     const sub=cbFilter==='all'
-      ?(KCAP==='off'?('keepers $'+r.ev.keepSpend+' exempt'):((r.val?Math.round(r.ev.keepSpend/r.val*100):0)+'% keepers'))
-      :(cbFilter==='k'?(r.ev.k+' keep'+(r.ev.k===1?'':'s')):r.ev.usedPicks+' picks');
+      ?((r.val?Math.round(r.ev.keepSpend/r.val*100):0)+'% keepers')
+      :(cbFilter==='k'?(r.ev.k+' keep'+(r.ev.k===1?'':'s')):r.ev.nSal+' salaried');
     val.appendChild($('span','mut small',sub));
     row.appendChild(val);
     cb.appendChild(row);
     if(isOpen)cb.appendChild(capDetail(r.ti));
   });
   cb.appendChild(tradeBtn());
-  cb.appendChild($('p','cardnote','Tap any team for the full story — every pick they hold, every pick they traded, and their keepers straight from Sleeper (synced on every visit).'));
+  cb.appendChild($('p','cardnote','Tap any team for their full cap sheet — every salaried player, biggest hit first, keepers marked solid.'));
   return cb;
 }
 

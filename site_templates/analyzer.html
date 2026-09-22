@@ -6,7 +6,7 @@ __NAV__
   <header class="hero">
     <div class="eyebrow">GGG League &middot; under the proposed rules</div>
     <h1>The Trade Tester</h1>
-    <p class="lede">Pick two teams, click the players changing sides, and get the verdict before you embarrass yourself in the group chat. Every number matches the Home page: players carry their <b>2026 keep price</b> (the round they were drafted — one round earlier if they were already a keeper in 2025), each team starts from its <b>projected 2026 opening</b> — the same figure as the cap board — and waiver pickups are <b>$0</b>. Future picks are $0 against this season&rsquo;s band; they hit the buyer&rsquo;s opening cap next year instead.</p>
+    <p class="lede">Pick two teams, click the players changing sides, and get the verdict before you embarrass yourself in the group chat. Every number matches the Home page: each player carries the <b>salary he was drafted at</b> in the 2026 draft (keepers included), waiver pickups are <b>$0</b>, and each team starts from its <b>current roster salary</b> — the same figure as the cap board. Future picks are $0 against this season&rsquo;s band; they hit the buyer&rsquo;s opening cap next year instead.</p>
     <div class="chiprow" id="ruleNote" style="margin-top:12px"></div>
   </header>
 
@@ -53,12 +53,11 @@ const rn=document.getElementById('ruleNote');
 rn.appendChild($('span','chip '+(labOn?'gold':'even'),(labOn?'⚗️ Lab rules active: ':'Default rules: ')+
   (isFinite(CAP)?('cap $'+CAP):'no cap')+' · '+(FLOOR>0?('floor $'+FLOOR):'no floor')));
 
-/* 2026 keeper price — one round up from the drafted round, same as the Home
-   keeper corner (baked as k26 by the build); waiver adds are $0 */
-const price=p=>p.el?p.k26:0;
-/* team baseline = projected 2026 opening from EVERY held pick (16 is the
-   roster limit, not a cap exemption) — the exact number the Home cap board shows */
-const openOf=ti=>DATA.teams[ti].picks.reduce((a,p)=>a+TABLE[p.r],0);
+/* in-season salary — the round he went at in the 2026 draft; waiver adds $0 */
+const price=p=>p.sal||0;
+/* team baseline = current roster salary — the exact number the Home cap
+   board shows */
+const openOf=ti=>DATA.teams[ti].players.reduce((a,p)=>a+(p.sal||0),0);
 
 let ta=0,tb=1,outA=new Set(),outB=new Set();
 
@@ -75,7 +74,7 @@ function pills(hostId,get,other,set){
 function sideBox(ti,out,boxId,headId,salId){
   const tm=DATA.teams[ti];
   document.getElementById(headId).textContent=tm.name;
-  document.getElementById(salId).textContent='opens $'+Math.round(openOf(ti));
+  document.getElementById(salId).textContent='salary $'+Math.round(openOf(ti));
   const box=document.getElementById(boxId);box.textContent='';
   const players=tm.players.map((p,i)=>({p,i})).sort((a,b)=>price(b.p)-price(a.p)||a.p.n.localeCompare(b.p.n));
   players.forEach(({p,i})=>{

@@ -572,18 +572,6 @@ def planner_teams():
             sal26[str(p["player_id"])] = CFG["table"][p["round"]]
     except (FileNotFoundError, IndexError, KeyError):
         pass
-    # 2026 salaries: the executed draft is the price sheet (salary = round,
-    # keepers included); waiver pickups carry $0
-    sal26, dr26 = {}, {}
-    try:
-        _did = load("drafts_2026.json")[0]["draft_id"]
-        for p in load(f"draftpicks_2026_{_did}.json"):
-            if p.get("player_id") is None:
-                continue
-            dr26[str(p["player_id"])] = p["round"]
-            sal26[str(p["player_id"])] = CFG["table"][p["round"]]
-    except (FileNotFoundError, IndexError, KeyError):
-        pass
     # official keepers from the renewed 2026 league (rosters carry a `keepers` field)
     official = {}
     try:
@@ -608,9 +596,6 @@ def planner_teams():
             rnd = draft_round.get(str(pid))
             e = {"pid": str(pid), "n": pdb.get("name") or f"?{pid}",
                  "pos": pdb.get("pos") or "?", "t": pdb.get("team") or ""}
-            e["sal"] = sal26.get(str(pid), 0)
-            if str(pid) in dr26:
-                e["dr"] = dr26[str(pid)]
             e["sal"] = sal26.get(str(pid), 0)
             if str(pid) in dr26:
                 e["dr"] = dr26[str(pid)]
